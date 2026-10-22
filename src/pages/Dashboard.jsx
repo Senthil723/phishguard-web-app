@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { motion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import {
   Activity,
   AlertTriangle,
@@ -337,29 +337,45 @@ function selectPage(page) {
   return (
     <div className="min-h-screen bg-[#080f1e] text-slate-100">
       {/* MOBILE NAVIGATION */}
-      {mobileMenuOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden">
-          <button
-            type="button"
-            aria-label="Close navigation"
-            onClick={() => setMobileMenuOpen(false)}
-            className="absolute inset-0 bg-black/70"
-          />
-          <aside className="absolute inset-y-0 left-0 w-72 border-r border-white/10 bg-[#0b1426]">
-            <div className="flex items-center justify-between border-b border-white/10">
-              {renderSidebar()}
-              <button
-                type="button"
-                aria-label="Close menu"
-                onClick={() => setMobileMenuOpen(false)}
-                className="absolute right-4 top-4 rounded-lg p-2 text-slate-400 hover:bg-white/10"
-              >
-                <X size={20} />
-              </button>
-            </div>
-          </aside>
-        </div>
-      )}
+      {/* AnimatePresence keeps the menu on screen long enough to play
+          its "exit" animation before React removes it. */}
+      <AnimatePresence>
+        {mobileMenuOpen && (
+          <div key="mobile-menu" className="fixed inset-0 z-50 lg:hidden">
+            {/* Dark backdrop: fades in and out */}
+            <motion.button
+              type="button"
+              aria-label="Close navigation"
+              onClick={() => setMobileMenuOpen(false)}
+              className="absolute inset-0 bg-black/70"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+            />
+            {/* Drawer: slides in from the left and slides back out */}
+            <motion.aside
+              className="absolute inset-y-0 left-0 w-72 border-r border-white/10 bg-[#0b1426]"
+              initial={{ x: "-100%", opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: "-100%", opacity: 0 }}
+              transition={{ duration: 0.25, ease: "easeOut" }}
+            >
+              <div className="flex items-center justify-between border-b border-white/10">
+                {renderSidebar()}
+                <button
+                  type="button"
+                  aria-label="Close menu"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="absolute right-4 top-4 rounded-lg p-2 text-slate-400 hover:bg-white/10"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+            </motion.aside>
+          </div>
+        )}
+      </AnimatePresence>
 
       <div className="flex min-h-screen">
         {/* DESKTOP SIDEBAR */}
