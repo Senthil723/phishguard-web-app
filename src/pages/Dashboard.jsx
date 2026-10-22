@@ -1,5 +1,5 @@
-
 import { useState } from "react";
+import { motion } from "motion/react";
 import {
   Activity,
   AlertTriangle,
@@ -60,12 +60,30 @@ const navigation = [
   { label: "About Project", icon: FileSearch },
 ];
 
+// Animation settings for the stat cards (variants).
+// "hidden" is the starting look, "show" is the final look.
+// The container does not move itself; it only tells its children
+// to start one after another (staggerChildren).
+const cardContainer = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.08 } },
+};
+
+const cardItem = {
+  hidden: { opacity: 0, y: 16 },
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.35, ease: "easeOut" },
+  },
+};
+
 function Dashboard() {
   const [activePage, setActivePage] = useState("Dashboard");
   const [url, setUrl] = useState("");
   const [notice, setNotice] = useState("");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  
+
 const [scans, setScans] = useState(() => {
   try {
     const savedHistory = JSON.parse(
@@ -144,7 +162,7 @@ const [scans, setScans] = useState(() => {
     setActivePage("Scan History");
   }
 
-  
+
 function selectPage(page) {
   setMobileMenuOpen(false);
   setNotice("");
@@ -261,7 +279,7 @@ function selectPage(page) {
     );
   }
 
-  
+
   const userScans = scans.filter(
     (scan) =>
       scan.type === "pending" ||
@@ -464,15 +482,21 @@ function selectPage(page) {
                   </span>
                 </div>
 
-                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <motion.div
+                  className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
+                  variants={cardContainer}
+                  initial="hidden"
+                  animate="show"
+                >
                   {stats.map((stat) => {
                     const Icon = stat.icon;
                     const Trend = stat.trend;
 
                     return (
-                      <article
+                      <motion.article
                         key={stat.label}
-                        className="rounded-2xl border border-white/[0.08] bg-[#0d182b] p-5 transition hover:border-white/15"
+                        variants={cardItem}
+                        className="rounded-2xl border border-white/[0.08] bg-[#0d182b] p-5 transition-colors hover:border-white/15"
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div
@@ -494,10 +518,10 @@ function selectPage(page) {
                         <p className="mt-2 text-[11px] text-slate-500">
                           {stat.detail}
                         </p>
-                      </article>
+                      </motion.article>
                     );
                   })}
-                </div>
+                </motion.div>
               </section>
             )}
 
@@ -711,7 +735,7 @@ function RecentScans({
   onViewAll,
   title = "Recent URL Activity",
 }) {
-  
+
   const userEntryCount = scans.filter(
     (scan) =>
       scan.type === "pending" ||
@@ -725,7 +749,7 @@ function RecentScans({
       <div className="flex flex-col justify-between gap-3 border-b border-white/[0.07] p-5 sm:flex-row sm:items-center sm:px-6">
         <div>
           <h3 className="font-semibold">Recent URL activity</h3>
-          
+
         <p className="mt-1 text-xs text-slate-500">
           {userEntryCount} user scan{userEntryCount !== 1 ? "s" : ""} ·{" "}
           {sampleCount} sample record{sampleCount !== 1 ? "s" : ""}
