@@ -80,6 +80,23 @@ const cardItem = {
   },
 };
 
+// Animation settings for the rows of the scan tables.
+// Rows are small, so they move less (8px) and start a little faster
+// (0.04s apart) than the big stat cards above.
+const rowContainer = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.04, delayChildren: 0.1 } },
+};
+
+const rowItem = {
+  hidden: { opacity: 0, y: 8 },
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.25, ease: "easeOut" },
+  },
+};
+
 function Dashboard() {
   // navigate() changes the page inside the React app without a full reload.
   const navigate = useNavigate();
@@ -842,11 +859,17 @@ function RecentScans({
               <th className="px-6 py-4 font-medium">Type</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-white/[0.05]">
+          <motion.tbody
+            className="divide-y divide-white/[0.05]"
+            variants={rowContainer}
+            initial="hidden"
+            animate="show"
+          >
             {scans.map((scan, index) => (
-              <tr
+              <motion.tr
                 key={`${scan.url}-${index}`}
-                className="transition hover:bg-white/[0.02]"
+                variants={rowItem}
+                className="transition-colors hover:bg-white/[0.02]"
               >
                 <td className="max-w-[260px] px-6 py-4">
                   <div className="flex items-center gap-3">
@@ -888,9 +911,9 @@ function RecentScans({
                       : "Sample data"}
                   </span>
                 </td>
-              </tr>
+              </motion.tr>
             ))}
-          </tbody>
+          </motion.tbody>
         </table>
       </div>
 
