@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
+import { useNavigate } from "react-router-dom";
 import {
   Activity,
   AlertTriangle,
@@ -80,6 +81,8 @@ const cardItem = {
 };
 
 function Dashboard() {
+  // navigate() changes the page inside the React app without a full reload.
+  const navigate = useNavigate();
   const [activePage, setActivePage] = useState("Dashboard");
   const [url, setUrl] = useState("");
   const [notice, setNotice] = useState("");
@@ -178,7 +181,7 @@ function selectPage(page) {
   setNotice("");
 
   if (page === "URL Scanner") {
-    window.location.assign("/scanner");
+    navigate("/scanner");
     return;
   }
 
