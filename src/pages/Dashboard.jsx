@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
   Activity,
@@ -14,6 +14,7 @@ import {
   FileSearch,
   Globe,
   History,
+  Info,
   LayoutDashboard,
   LockKeyhole,
   LogOut,
@@ -83,6 +84,15 @@ function Dashboard() {
   const [url, setUrl] = useState("");
   const [notice, setNotice] = useState("");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Hide the notice toast automatically after 6 seconds.
+  // The cleanup function cancels the old timer if the message changes.
+  useEffect(() => {
+    if (!notice) return;
+
+    const timer = setTimeout(() => setNotice(""), 6000);
+    return () => clearTimeout(timer);
+  }, [notice]);
 
 const [scans, setScans] = useState(() => {
   try {
@@ -377,6 +387,42 @@ function selectPage(page) {
         )}
       </AnimatePresence>
 
+      {/* NOTICE TOAST
+          The outer wrapper is always on the page and is a "live region",
+          so screen readers announce a new message when it appears.
+          Only the message card inside it animates in and out. */}
+      <div
+        role="status"
+        aria-live="polite"
+        className="pointer-events-none fixed inset-x-4 bottom-4 z-[60] flex justify-center sm:inset-x-auto sm:bottom-6 sm:right-6 sm:justify-end"
+      >
+        <AnimatePresence mode="wait">
+          {notice && (
+            <motion.div
+              key={notice}
+              className="pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-2xl border border-cyan-400/20 bg-[#0d182b] p-4 shadow-2xl shadow-black/40"
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 8 }}
+              transition={{ duration: 0.25, ease: "easeOut" }}
+            >
+              <Info size={19} className="mt-0.5 shrink-0 text-cyan-300" />
+              <p className="min-w-0 flex-1 text-sm leading-6 text-cyan-100">
+                {notice}
+              </p>
+              <button
+                type="button"
+                aria-label="Dismiss message"
+                onClick={() => setNotice("")}
+                className="shrink-0 rounded-lg p-1 text-slate-400 transition-colors hover:bg-white/10 hover:text-white"
+              >
+                <X size={16} />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
       <div className="flex min-h-screen">
         {/* DESKTOP SIDEBAR */}
         <aside className="hidden w-64 shrink-0 border-r border-white/[0.07] bg-[#0b1426] lg:block">
@@ -594,15 +640,6 @@ function selectPage(page) {
                         <ArrowRight size={17} />
                       </button>
                     </form>
-
-                    {notice && (
-                      <p
-                        role="status"
-                        className="mt-4 rounded-xl border border-cyan-400/20 bg-cyan-400/[0.06] p-3 text-xs leading-5 text-cyan-200"
-                      >
-                        {notice}
-                      </p>
-                    )}
                   </div>
                 </section>
 
@@ -649,11 +686,6 @@ function selectPage(page) {
                     Try demo
                   </button>
                 </form>
-                {notice && (
-                  <p role="status" className="mt-4 text-sm text-cyan-200">
-                    {notice}
-                  </p>
-                )}
               </section>
             )}
 
