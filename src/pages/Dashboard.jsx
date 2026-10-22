@@ -587,6 +587,17 @@ function selectPage(page) {
               </section>
             )}
 
+            {/* SECTION TRANSITION
+                Changing "key" makes React treat this as a brand-new element,
+                so the small fade-and-rise plays every time activePage changes.
+                There is no exit animation, so switching sections is never delayed. */}
+            <motion.div
+              key={activePage}
+              className="space-y-7"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.22, ease: "easeOut" }}
+            >
             {/* DASHBOARD PAGE */}
             {activePage === "Dashboard" && (
               <>
@@ -762,6 +773,8 @@ function selectPage(page) {
                 </div>
               </section>
             )}
+
+            </motion.div>
 
             {/* FOOTER */}
             <footer className="flex flex-col justify-between gap-2 border-t border-white/[0.07] pt-5 text-xs text-slate-500 sm:flex-row">
