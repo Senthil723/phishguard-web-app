@@ -1,5 +1,7 @@
 
 import { useLocation, useNavigate } from "react-router-dom";
+import { motion } from "motion/react";
+import { fadeUp, staggerContainer } from "../animations";
 import {
   ArrowLeft,
   ArrowRight,
@@ -58,9 +60,16 @@ function ScanResults() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-5 py-10 sm:px-8">
+      {/* The main area reveals its sections one after another.
+          The header above stays still, like the Dashboard sidebar. */}
+      <motion.main
+        className="mx-auto max-w-7xl px-5 py-10 sm:px-8"
+        variants={staggerContainer}
+        initial="hidden"
+        animate="show"
+      >
         {/* Page heading */}
-        <div className="mb-8">
+        <motion.div variants={fadeUp} className="mb-8">
           <div className="mb-3 flex items-center gap-2 text-sm text-cyan-400">
             <FileSearch size={17} />
             <span>Security Analysis</span>
@@ -75,10 +84,13 @@ function ScanResults() {
             Real phishing detection will be available after the
             machine learning backend is connected.
           </p>
-        </div>
+        </motion.div>
 
         {/* Demo notice */}
-        <div className="mb-8 flex gap-3 rounded-2xl border border-amber-400/20 bg-amber-400/5 p-4">
+        <motion.div
+          variants={fadeUp}
+          className="mb-8 flex gap-3 rounded-2xl border border-amber-400/20 bg-amber-400/5 p-4"
+        >
           <Info className="mt-0.5 shrink-0 text-amber-400" size={21} />
 
           <div>
@@ -91,10 +103,13 @@ function ScanResults() {
               service has analyzed the URL yet.
             </p>
           </div>
-        </div>
+        </motion.div>
 
         {/* URL summary */}
-        <section className="mb-8 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-xl shadow-black/10 sm:p-7">
+        <motion.section
+          variants={fadeUp}
+          className="mb-8 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-xl shadow-black/10 sm:p-7"
+        >
           <div className="mb-5 flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-400/10 text-blue-400">
               <Globe size={22} />
@@ -119,11 +134,19 @@ function ScanResults() {
               Start a scan from the URL Scanner page to pass a URL here.
             </p>
           )}
-        </section>
+        </motion.section>
 
-        {/* Analysis status */}
-        <div className="mb-8 grid gap-5 md:grid-cols-3">
-          <section className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
+        {/* Analysis status
+            This grid is a parent too, so its three cards
+            appear one after another inside it. */}
+        <motion.div
+          variants={staggerContainer}
+          className="mb-8 grid gap-5 md:grid-cols-3"
+        >
+          <motion.section
+            variants={fadeUp}
+            className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5"
+          >
             <div className="mb-4 flex items-center justify-between">
               <span className="text-sm text-slate-400">
                 Detection status
@@ -137,9 +160,12 @@ function ScanResults() {
             <p className="mt-2 text-sm leading-5 text-slate-500">
               No detection engine is connected.
             </p>
-          </section>
+          </motion.section>
 
-          <section className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
+          <motion.section
+            variants={fadeUp}
+            className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5"
+          >
             <div className="mb-4 flex items-center justify-between">
               <span className="text-sm text-slate-400">
                 Risk score
@@ -153,9 +179,12 @@ function ScanResults() {
             <p className="mt-2 text-sm leading-5 text-slate-500">
               No score has been calculated.
             </p>
-          </section>
+          </motion.section>
 
-          <section className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
+          <motion.section
+            variants={fadeUp}
+            className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5"
+          >
             <div className="mb-4 flex items-center justify-between">
               <span className="text-sm text-slate-400">
                 Analysis time
@@ -169,11 +198,14 @@ function ScanResults() {
             <p className="mt-2 text-sm leading-5 text-slate-500">
               A scan has not been performed.
             </p>
-          </section>
-        </div>
+          </motion.section>
+        </motion.div>
 
         {/* Findings */}
-        <section className="mb-8 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 sm:p-7">
+        <motion.section
+          variants={fadeUp}
+          className="mb-8 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 sm:p-7"
+        >
           <div className="mb-6 flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-400/10 text-cyan-400">
               <Sparkles size={21} />
@@ -230,10 +262,13 @@ function ScanResults() {
               </div>
             </div>
           </div>
-        </section>
+        </motion.section>
 
         {/* Bottom actions */}
-        <div className="flex flex-col gap-3 sm:flex-row">
+        <motion.div
+          variants={fadeUp}
+          className="flex flex-col gap-3 sm:flex-row"
+        >
           <button
             type="button"
             onClick={() => navigate("/scanner")}
@@ -250,13 +285,16 @@ function ScanResults() {
           >
             Back to Dashboard
           </button>
-        </div>
+        </motion.div>
 
-        <p className="mt-8 text-center text-xs leading-5 text-slate-500">
+        <motion.p
+          variants={fadeUp}
+          className="mt-8 text-center text-xs leading-5 text-slate-500"
+        >
           PhishGuard prototype · Results are not a security verdict.
           Always use trusted security tools to investigate suspicious URLs.
-        </p>
-      </main>
+        </motion.p>
+      </motion.main>
     </div>
   );
 }
