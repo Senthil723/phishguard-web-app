@@ -1,6 +1,8 @@
 
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { AnimatePresence, motion } from "motion/react";
+import { fadeUp, staggerContainer } from "../animations";
 import {
   ShieldCheck,
   Search,
@@ -97,8 +99,17 @@ export default function URLScanner() {
 
   return (
     <div className="min-h-screen bg-slate-950 px-4 py-8 text-white sm:px-8">
-      <div className="mx-auto max-w-4xl">
-        <div className="mb-8 flex items-center gap-3">
+      {/* The three blocks of the page appear one after another. */}
+      <motion.div
+        className="mx-auto max-w-4xl"
+        variants={staggerContainer}
+        initial="hidden"
+        animate="show"
+      >
+        <motion.div
+          variants={fadeUp}
+          className="mb-8 flex items-center gap-3"
+        >
           <div className="rounded-xl bg-cyan-500/10 p-3">
             <ShieldCheck className="h-8 w-8 text-cyan-400" />
           </div>
@@ -111,9 +122,12 @@ export default function URLScanner() {
               Check a website URL with PhishGuard.
             </p>
           </div>
-        </div>
+        </motion.div>
 
-        <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-xl sm:p-8">
+        <motion.div
+          variants={fadeUp}
+          className="rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-xl sm:p-8"
+        >
           <div className="mb-6">
             <h2 className="text-xl font-semibold">
               Scan a website
@@ -151,22 +165,43 @@ export default function URLScanner() {
                 />
               </div>
 
-              <button
+              {/* whileTap shrinks the button a little while it is pressed.
+                  The short duration keeps it crisp, with no bounce.
+                  "transition-colors" keeps the hover colour change without
+                  fighting Motion over the size change. */}
+              <motion.button
                 type="submit"
-                className="flex items-center justify-center gap-2 rounded-xl bg-cyan-500 px-6 py-4 font-semibold text-slate-950 transition hover:bg-cyan-400"
+                whileTap={{ scale: 0.97 }}
+                transition={{ duration: 0.1 }}
+                className="flex items-center justify-center gap-2 rounded-xl bg-cyan-500 px-6 py-4 font-semibold text-slate-950 transition-colors hover:bg-cyan-400"
               >
                 <Search className="h-5 w-5" />
                 Validate URL
-              </button>
+              </motion.button>
             </div>
           </form>
 
-          {message && (
-            <div className="mt-5 flex gap-3 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">
-              <AlertTriangle className="h-5 w-5 shrink-0" />
-              <p>{message}</p>
-            </div>
-          )}
+          {/* The error message opens and closes smoothly instead of
+              pushing the page down suddenly. The outer box animates its
+              height; the red box inside keeps its normal spacing. */}
+          <AnimatePresence>
+            {message && (
+              <motion.div
+                key="scanner-error"
+                role="alert"
+                className="overflow-hidden"
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.2, ease: "easeOut" }}
+              >
+                <div className="mt-5 flex gap-3 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">
+                  <AlertTriangle className="h-5 w-5 shrink-0" />
+                  <p>{message}</p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {scannedUrl && (
             <div className="mt-6 rounded-xl border border-cyan-500/30 bg-cyan-500/5 p-5">
@@ -204,9 +239,12 @@ export default function URLScanner() {
               </button>
             </div>
           )}
-        </div>
+        </motion.div>
 
-        <div className="mt-6 rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
+        <motion.div
+          variants={fadeUp}
+          className="mt-6 rounded-xl border border-amber-500/20 bg-amber-500/5 p-4"
+        >
           <div className="flex items-start gap-3">
             <Info className="mt-1 h-5 w-5 shrink-0 text-amber-400" />
             <div>
@@ -220,8 +258,8 @@ export default function URLScanner() {
               </p>
             </div>
           </div>
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
     </div>
   );
 }
