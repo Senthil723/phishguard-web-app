@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "motion/react";
-import { fadeUp, staggerContainer } from "../animations";
+import { fadeUp, pressFeedback, staggerContainer } from "../animations";
 import {
   ShieldCheck,
   Search,
@@ -165,14 +165,13 @@ export default function URLScanner() {
                 />
               </div>
 
-              {/* whileTap shrinks the button a little while it is pressed.
-                  The short duration keeps it crisp, with no bounce.
+              {/* pressFeedback (from animations.js) shrinks the button a
+                  little while it is pressed.
                   "transition-colors" keeps the hover colour change without
                   fighting Motion over the size change. */}
               <motion.button
                 type="submit"
-                whileTap={{ scale: 0.97 }}
-                transition={{ duration: 0.1 }}
+                {...pressFeedback}
                 className="flex items-center justify-center gap-2 rounded-xl bg-cyan-500 px-6 py-4 font-semibold text-slate-950 transition-colors hover:bg-cyan-400"
               >
                 <Search className="h-5 w-5" />

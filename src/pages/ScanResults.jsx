@@ -1,7 +1,7 @@
 
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
-import { fadeUp, staggerContainer } from "../animations";
+import { fadeUp, pressFeedback, staggerContainer } from "../animations";
 import {
   ArrowLeft,
   ArrowRight,
@@ -269,22 +269,24 @@ function ScanResults() {
           variants={fadeUp}
           className="flex flex-col gap-3 sm:flex-row"
         >
-          <button
+          <motion.button
             type="button"
             onClick={() => navigate("/scanner")}
-            className="flex items-center justify-center gap-2 rounded-xl bg-cyan-400 px-6 py-3 font-semibold text-slate-950 transition hover:bg-cyan-300"
+            {...pressFeedback}
+            className="flex items-center justify-center gap-2 rounded-xl bg-cyan-400 px-6 py-3 font-semibold text-slate-950 transition-colors hover:bg-cyan-300"
           >
             Scan Another URL
             <ArrowRight size={18} />
-          </button>
+          </motion.button>
 
-          <button
+          <motion.button
             type="button"
             onClick={() => navigate("/dashboard")}
-            className="flex items-center justify-center gap-2 rounded-xl border border-slate-700 px-6 py-3 font-semibold text-slate-200 transition hover:border-slate-500"
+            {...pressFeedback}
+            className="flex items-center justify-center gap-2 rounded-xl border border-slate-700 px-6 py-3 font-semibold text-slate-200 transition-colors hover:border-slate-500"
           >
             Back to Dashboard
-          </button>
+          </motion.button>
         </motion.div>
 
         <motion.p

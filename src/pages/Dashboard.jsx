@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { useNavigate } from "react-router-dom";
+import { pressFeedback } from "../animations";
 import {
   Activity,
   AlertTriangle,
@@ -525,14 +526,15 @@ function selectPage(page) {
                 </p>
               </div>
 
-              <button
+              <motion.button
                 type="button"
                 onClick={() => selectPage("Scan History")}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:bg-white/[0.07]"
+                {...pressFeedback}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-sm font-medium text-slate-200 transition-colors hover:bg-white/[0.07]"
               >
                 <History size={17} />
                 View scan history
-              </button>
+              </motion.button>
             </section>
 
             {/* DEMO DISCLAIMER */}
@@ -663,13 +665,14 @@ function selectPage(page) {
                         />
                       </div>
 
-                      <button
+                      <motion.button
                         type="submit"
-                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                        {...pressFeedback}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-cyan-400"
                       >
                         Try demo
                         <ArrowRight size={17} />
-                      </button>
+                      </motion.button>
                     </form>
                   </div>
                 </section>

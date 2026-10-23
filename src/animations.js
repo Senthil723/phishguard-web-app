@@ -16,3 +16,10 @@ export const fadeUp = {
     transition: { duration: 0.3, ease: "easeOut" },
   },
 };
+
+// Spread on a <motion.button>:  <motion.button {...pressFeedback}>
+// The button shrinks a little while pressed. Short, with no bounce.
+export const pressFeedback = {
+  whileTap: { scale: 0.97 },
+  transition: { duration: 0.1 },
+};
