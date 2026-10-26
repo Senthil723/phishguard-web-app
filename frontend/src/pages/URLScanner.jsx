@@ -53,6 +53,7 @@ export default function URLScanner() {
           minute: "2-digit",
         }),
         type: "pending",
+        createdAt: new Date().toISOString(),
       };
 
       // Read the existing scan history.
@@ -98,7 +99,7 @@ export default function URLScanner() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 px-4 py-8 text-white sm:px-8">
+    <div className="px-0 py-2 text-slate-900">
       {/* The three blocks of the page appear one after another. */}
       <motion.div
         className="mx-auto max-w-4xl"
@@ -111,14 +112,14 @@ export default function URLScanner() {
           className="mb-8 flex items-center gap-3"
         >
           <div className="rounded-xl bg-cyan-500/10 p-3">
-            <ShieldCheck className="h-8 w-8 text-cyan-400" />
+            <ShieldCheck className="h-8 w-8 text-cyan-700" />
           </div>
 
           <div>
             <h1 className="text-3xl font-bold">
               URL Scanner
             </h1>
-            <p className="mt-1 text-sm text-slate-400">
+            <p className="mt-1 text-sm text-slate-500">
               Check a website URL with PhishGuard.
             </p>
           </div>
@@ -126,13 +127,13 @@ export default function URLScanner() {
 
         <motion.div
           variants={fadeUp}
-          className="rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-xl sm:p-8"
+          className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xl sm:p-8"
         >
           <div className="mb-6">
             <h2 className="text-xl font-semibold">
               Scan a website
             </h2>
-            <p className="mt-2 text-sm leading-6 text-slate-400">
+            <p className="mt-2 text-sm leading-6 text-slate-500">
               Enter the URL you want to examine. This prototype
               validates the URL format only; it does not detect
               phishing or verify website safety.
@@ -142,13 +143,13 @@ export default function URLScanner() {
           <form onSubmit={handleScan}>
             <label
               htmlFor="website-url"
-              className="mb-2 block text-sm font-medium text-slate-200"
+              className="mb-2 block text-sm font-medium text-slate-700"
             >
               Website URL
             </label>
 
             <div className="flex flex-col gap-3 sm:flex-row">
-              <div className="flex flex-1 items-center gap-3 rounded-xl border border-slate-700 bg-slate-950 px-4 focus-within:border-cyan-500">
+              <div className="flex flex-1 items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 focus-within:border-blue-500">
                 <LinkIcon className="h-5 w-5 shrink-0 text-slate-500" />
 
                 <input
@@ -161,7 +162,7 @@ export default function URLScanner() {
                     setScannedUrl("");
                   }}
                   placeholder="https://example.com"
-                  className="min-w-0 flex-1 bg-transparent py-4 text-sm text-white outline-none placeholder:text-slate-600"
+                  className="min-w-0 flex-1 bg-transparent py-4 text-sm text-slate-900 outline-none placeholder:text-slate-400"
                 />
               </div>
 
@@ -194,7 +195,7 @@ export default function URLScanner() {
                 exit={{ opacity: 0, height: 0 }}
                 transition={{ duration: 0.2, ease: "easeOut" }}
               >
-                <div className="mt-5 flex gap-3 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">
+                <div className="mt-5 flex gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
                   <AlertTriangle className="h-5 w-5 shrink-0" />
                   <p>{message}</p>
                 </div>
@@ -203,26 +204,26 @@ export default function URLScanner() {
           </AnimatePresence>
 
           {scannedUrl && (
-            <div className="mt-6 rounded-xl border border-cyan-500/30 bg-cyan-500/5 p-5">
+            <div className="mt-6 rounded-xl border border-cyan-200 bg-cyan-50/70 p-5">
               <div className="flex items-start gap-3">
-                <Info className="mt-1 h-6 w-6 shrink-0 text-cyan-400" />
+                <Info className="mt-1 h-6 w-6 shrink-0 text-cyan-700" />
 
                 <div className="min-w-0">
-                  <h3 className="font-semibold text-cyan-300">
+                  <h3 className="font-semibold text-cyan-800">
                     URL format is valid
                   </h3>
 
-                  <p className="mt-2 break-all text-sm text-slate-300">
+                  <p className="mt-2 break-all text-sm text-slate-700">
                     {scannedUrl}
                   </p>
 
-                  <p className="mt-3 text-sm leading-6 text-slate-400">
+                  <p className="mt-3 text-sm leading-6 text-slate-500">
                     This only confirms that the URL passed basic
                     format checks. The website has not been
                     checked for phishing or malware.
                   </p>
 
-                  <span className="mt-4 inline-block rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-medium text-amber-300">
+                  <span className="mt-4 inline-block rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-800">
                     Demo — Detection not connected
                   </span>
                 </div>
@@ -231,7 +232,7 @@ export default function URLScanner() {
               <button
                 type="button"
                 onClick={resetScanner}
-                className="mt-5 flex items-center gap-2 rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-300 transition hover:bg-slate-800"
+                className="mt-5 flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-700 transition hover:bg-slate-100"
               >
                 <RotateCcw className="h-4 w-4" />
                 Scan another URL
@@ -242,15 +243,15 @@ export default function URLScanner() {
 
         <motion.div
           variants={fadeUp}
-          className="mt-6 rounded-xl border border-amber-500/20 bg-amber-500/5 p-4"
+          className="mt-6 rounded-xl border border-amber-200 bg-amber-50/70 p-4"
         >
           <div className="flex items-start gap-3">
-            <Info className="mt-1 h-5 w-5 shrink-0 text-amber-400" />
+            <Info className="mt-1 h-5 w-5 shrink-0 text-amber-700" />
             <div>
-              <h3 className="font-medium text-amber-300">
+              <h3 className="font-medium text-amber-800">
                 Prototype notice
               </h3>
-              <p className="mt-1 text-sm leading-6 text-slate-400">
+              <p className="mt-1 text-sm leading-6 text-slate-500">
                 No machine-learning model, security API, or
                 backend is connected. Do not use this page to
                 decide whether a website is safe.
