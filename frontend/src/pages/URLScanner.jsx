@@ -1,4 +1,5 @@
 
+
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "motion/react";
@@ -11,6 +12,7 @@ import {
   Info,
   RotateCcw,
 } from "lucide-react";
+import { createScan } from "../services/api";
 
 export default function URLScanner() {
   const navigate = useNavigate();
@@ -18,9 +20,12 @@ export default function URLScanner() {
   const [url, setUrl] = useState("");
   const [message, setMessage] = useState("");
   const [scannedUrl, setScannedUrl] = useState("");
+  const [isScanning, setIsScanning] = useState(false);
 
-  function handleScan(event) {
+  async function handleScan(event) {
     event.preventDefault();
+
+    if (isScanning) return;
 
     const trimmedUrl = url.trim();
 
@@ -30,65 +35,84 @@ export default function URLScanner() {
       return;
     }
 
+    let normalizedUrl;
+
+    // Step 1: Validate the URL format.
     try {
-      const normalizedUrl = /^https?:\/\//i.test(trimmedUrl)
+      normalizedUrl = /^https?:\/\//i.test(trimmedUrl)
         ? trimmedUrl
         : `https://${trimmedUrl}`;
 
       const parsedUrl = new URL(normalizedUrl);
 
       if (
+        !["http:", "https:"].includes(parsedUrl.protocol) ||
         !parsedUrl.hostname.includes(".") ||
         /\s/.test(parsedUrl.hostname)
       ) {
         throw new Error("Invalid URL");
       }
 
-      // Create a history entry for this URL.
+      normalizedUrl = parsedUrl.href;
+    } catch {
+      setScannedUrl("");
+      setMessage("Please enter a valid URL, such as example.com.");
+      return;
+    }
+
+    // Step 2: Save the URL through the backend API.
+    setIsScanning(true);
+    setMessage("");
+    setScannedUrl("");
+
+    try {
+      const savedScan = await createScan(normalizedUrl);
+
+      // Step 3: Keep the existing browser-tab history feature.
       const historyEntry = {
-        url: parsedUrl.href,
+        id: savedScan.id,
+        url: savedScan.url,
         status: "Demo: Not analyzed",
-        time: new Date().toLocaleTimeString([], {
+        time: new Date(savedScan.created_at).toLocaleTimeString([], {
           hour: "2-digit",
           minute: "2-digit",
         }),
         type: "pending",
-        createdAt: new Date().toISOString(),
+        createdAt: savedScan.created_at,
       };
 
-      // Read the existing scan history.
       const existingHistory = JSON.parse(
         sessionStorage.getItem("phishguardHistory") || "[]"
       );
 
-      // Put the newest scan first and keep up to 20 entries.
       const updatedHistory = [
         historyEntry,
         ...(Array.isArray(existingHistory) ? existingHistory : []),
       ].slice(0, 20);
 
-      // Save the history in this browser tab's session.
       sessionStorage.setItem(
         "phishguardHistory",
         JSON.stringify(updatedHistory)
       );
 
-      setMessage("");
-      setScannedUrl(parsedUrl.href);
+      setScannedUrl(savedScan.url);
 
-      // Open the Results page.
+      // Step 4: Open the Results page with the saved scan details.
       navigate("/results", {
         state: {
-          url: parsedUrl.href,
+          url: savedScan.url,
+          scanId: savedScan.id,
+          status: savedScan.status,
         },
       });
     } catch (error) {
-      console.error("URL validation or history saving failed:", error);
+      console.error("Failed to save scan:", error);
 
-      setScannedUrl("");
       setMessage(
-        "Please enter a valid URL, such as example.com."
+        "Unable to save this URL. Check that the backend is running, then try again."
       );
+    } finally {
+      setIsScanning(false);
     }
   }
 
@@ -100,7 +124,6 @@ export default function URLScanner() {
 
   return (
     <div className="px-0 py-2 text-slate-900">
-      {/* The three blocks of the page appear one after another. */}
       <motion.div
         className="mx-auto max-w-4xl"
         variants={staggerContainer}
@@ -116,11 +139,9 @@ export default function URLScanner() {
           </div>
 
           <div>
-            <h1 className="text-3xl font-bold">
-              URL Scanner
-            </h1>
+            <h1 className="text-3xl font-bold">URL Scanner</h1>
             <p className="mt-1 text-sm text-slate-500">
-              Check a website URL with PhishGuard.
+              Submit a website URL to PhishGuard.
             </p>
           </div>
         </motion.div>
@@ -130,13 +151,11 @@ export default function URLScanner() {
           className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xl sm:p-8"
         >
           <div className="mb-6">
-            <h2 className="text-xl font-semibold">
-              Scan a website
-            </h2>
+            <h2 className="text-xl font-semibold">Scan a website</h2>
             <p className="mt-2 text-sm leading-6 text-slate-500">
-              Enter the URL you want to examine. This prototype
-              validates the URL format only; it does not detect
-              phishing or verify website safety.
+              Enter a URL to save it to your scan history. Currently,
+              PhishGuard validates the URL format and stores your
+              submission. Phishing detection is not connected yet.
             </p>
           </div>
 
@@ -162,32 +181,27 @@ export default function URLScanner() {
                     setScannedUrl("");
                   }}
                   placeholder="https://example.com"
-                  className="min-w-0 flex-1 bg-transparent py-4 text-sm text-slate-900 outline-none placeholder:text-slate-400"
+                  disabled={isScanning}
+                  className="min-w-0 flex-1 bg-transparent py-4 text-sm text-slate-900 outline-none placeholder:text-slate-400 disabled:opacity-60"
                 />
               </div>
 
-              {/* pressFeedback (from animations.js) shrinks the button a
-                  little while it is pressed.
-                  "transition-colors" keeps the hover colour change without
-                  fighting Motion over the size change. */}
               <motion.button
                 type="submit"
                 {...pressFeedback}
-                className="flex items-center justify-center gap-2 rounded-xl bg-cyan-500 px-6 py-4 font-semibold text-slate-950 transition-colors hover:bg-cyan-400"
+                disabled={isScanning}
+                className="flex items-center justify-center gap-2 rounded-xl bg-cyan-500 px-6 py-4 font-semibold text-slate-950 transition-colors hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <Search className="h-5 w-5" />
-                Validate URL
+                {isScanning ? "Saving URL..." : "Submit URL"}
               </motion.button>
             </div>
           </form>
 
-          {/* The error message opens and closes smoothly instead of
-              pushing the page down suddenly. The outer box animates its
-              height; the red box inside keeps its normal spacing. */}
           <AnimatePresence>
             {message && (
               <motion.div
-                key="scanner-error"
+                key="scanner-message"
                 role="alert"
                 className="overflow-hidden"
                 initial={{ opacity: 0, height: 0 }}
@@ -210,7 +224,7 @@ export default function URLScanner() {
 
                 <div className="min-w-0">
                   <h3 className="font-semibold text-cyan-800">
-                    URL format is valid
+                    URL saved successfully
                   </h3>
 
                   <p className="mt-2 break-all text-sm text-slate-700">
@@ -218,13 +232,12 @@ export default function URLScanner() {
                   </p>
 
                   <p className="mt-3 text-sm leading-6 text-slate-500">
-                    This only confirms that the URL passed basic
-                    format checks. The website has not been
-                    checked for phishing or malware.
+                    Your URL was saved to the backend database. It has
+                    not been analyzed for phishing or malware.
                   </p>
 
                   <span className="mt-4 inline-block rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-800">
-                    Demo — Detection not connected
+                    Detection not connected
                   </span>
                 </div>
               </div>
@@ -235,7 +248,7 @@ export default function URLScanner() {
                 className="mt-5 flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-700 transition hover:bg-slate-100"
               >
                 <RotateCcw className="h-4 w-4" />
-                Scan another URL
+                Submit another URL
               </button>
             </div>
           )}
@@ -247,14 +260,18 @@ export default function URLScanner() {
         >
           <div className="flex items-start gap-3">
             <Info className="mt-1 h-5 w-5 shrink-0 text-amber-700" />
+
             <div>
               <h3 className="font-medium text-amber-800">
                 Prototype notice
               </h3>
+
               <p className="mt-1 text-sm leading-6 text-slate-500">
-                No machine-learning model, security API, or
-                backend is connected. Do not use this page to
-                decide whether a website is safe.
+                The backend database is connected through the API,
+                but no machine-learning model or security service
+                currently determines whether a URL is malicious.
+                Do not use this prototype to decide whether a website
+                is safe.
               </p>
             </div>
           </div>
