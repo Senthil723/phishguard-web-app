@@ -1,5 +1,5 @@
-
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
 import {
   Download,
@@ -15,6 +15,29 @@ import {
 import { fadeUp, staggerContainer } from "../animations";
 import { getScans } from "../services/api";
 
+// Convert backend status values into readable labels.
+// This changes the display only, not the saved database status.
+function formatStatus(status) {
+  const normalized = String(status || "")
+    .trim()
+    .toLowerCase();
+
+  if (normalized === "not_analyzed" || normalized === "pending") {
+    return "Pending Analysis";
+  }
+
+  if (["analyzed", "analysed", "completed"].includes(normalized)) {
+    return "Analysis Completed";
+  }
+
+  return normalized
+    ? normalized
+        .replaceAll("_", " ")
+        .replace(/\b\w/g, (character) => character.toUpperCase())
+    : "Unknown";
+}
+
+// Export the currently filtered records as a CSV file.
 function downloadCsv(rows) {
   const headers = ["ID", "URL", "Status", "Date / Time", "Type"];
 
@@ -26,7 +49,7 @@ function downloadCsv(rows) {
     ...rows.map((row) => [
       row.id,
       row.url,
-      row.status,
+      formatStatus(row.status),
       row.createdAt ? new Date(row.createdAt).toLocaleString() : "",
       "Backend database",
     ]),
@@ -43,12 +66,17 @@ function downloadCsv(rows) {
 
   link.href = href;
   link.download = "phishguard-scan-history.csv";
+  document.body.appendChild(link);
   link.click();
+  link.remove();
 
-  URL.revokeObjectURL(href);
+  // Allow the browser time to start the download before cleanup.
+  window.setTimeout(() => URL.revokeObjectURL(href), 1000);
 }
 
 export default function ScanHistory() {
+  const navigate = useNavigate();
+
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("all");
   const [dateRange, setDateRange] = useState("all");
@@ -62,7 +90,7 @@ export default function ScanHistory() {
     setError("");
 
     try {
-      const scans = await getScans(20);
+      const scans = await getScans(100);
 
       if (!Array.isArray(scans)) {
         throw new Error("The backend returned an unexpected response.");
@@ -155,7 +183,10 @@ export default function ScanHistory() {
             disabled={loading}
             className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
           >
-            <RefreshCw size={17} className={loading ? "animate-spin" : ""} />
+            <RefreshCw
+              size={17}
+              className={loading ? "animate-spin" : ""}
+            />
             Refresh
           </button>
 
@@ -201,7 +232,7 @@ export default function ScanHistory() {
               className="min-w-36 rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-700 outline-none focus:border-blue-400"
             >
               <option value="all">All statuses</option>
-              <option value="pending">Not analyzed</option>
+              <option value="pending">Pending Analysis</option>
             </select>
 
             <select
@@ -271,19 +302,29 @@ export default function ScanHistory() {
                           <Globe size={17} />
                         </span>
 
-                        <span
-                          className="truncate font-medium text-slate-800"
-                          title={row.url}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            navigate("/results", {
+                              state: {
+                                scanId: row.id,
+                                url: row.url,
+                              },
+                            })
+                          }
+                          className="truncate text-left font-medium text-blue-700 underline-offset-4 transition hover:text-blue-900 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                          title={`View saved scan #${row.id}`}
+                          aria-label={`View scan results for ${row.url}`}
                         >
                           {row.url}
-                        </span>
+                        </button>
                       </div>
                     </td>
 
                     <td className="px-5 py-4">
                       <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
                         <Clock3 size={13} />
-                        {row.status}
+                        {formatStatus(row.status)}
                       </span>
                     </td>
 
