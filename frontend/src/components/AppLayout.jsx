@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "motion/react";
 import {
@@ -18,7 +18,59 @@ const navigation = [
 export default function AppLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const mobileMenuRef = useRef(null);
+  const menuTriggerRef = useRef(null);
+  const menuWasOpenRef = useRef(false);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!mobileOpen) {
+      if (menuWasOpenRef.current) {
+        menuTriggerRef.current?.focus();
+      }
+      menuWasOpenRef.current = false;
+      return undefined;
+    }
+
+    menuWasOpenRef.current = true;
+    const menu = mobileMenuRef.current;
+    const getFocusableItems = () =>
+      menu?.querySelectorAll(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      ) ?? [];
+    const focusableItems = getFocusableItems();
+    focusableItems[0]?.focus();
+
+    function handleMenuKeyDown(event) {
+      if (event.key === "Escape") {
+        setMobileOpen(false);
+        return;
+      }
+
+      if (event.key !== "Tab") return;
+
+      const items = getFocusableItems();
+      const firstItem = items[0];
+      const lastItem = items[items.length - 1];
+
+      if (!menu?.contains(document.activeElement)) {
+        event.preventDefault();
+        firstItem?.focus();
+      } else if (event.shiftKey && document.activeElement === firstItem) {
+        event.preventDefault();
+        lastItem?.focus();
+      } else if (!event.shiftKey && document.activeElement === lastItem) {
+        event.preventDefault();
+        firstItem?.focus();
+      }
+    }
+
+    document.addEventListener("keydown", handleMenuKeyDown);
+
+    return () => {
+      document.removeEventListener("keydown", handleMenuKeyDown);
+    };
+  }, [mobileOpen]);
 
   const navItems = (mobile = false) => navigation.map(({ label, to, icon: Icon }) => (
     <NavLink
@@ -38,7 +90,10 @@ export default function AppLayout() {
         <div className="mx-auto flex min-h-[76px] max-w-[1600px] items-center gap-4 px-4 sm:px-6 xl:px-9">
           <button
             type="button"
+            ref={menuTriggerRef}
             aria-label="Open navigation menu"
+            aria-expanded={mobileOpen}
+            aria-controls="mobile-navigation"
             onClick={() => setMobileOpen(true)}
             className="rounded-xl border border-slate-200 p-2.5 text-slate-600 hover:bg-slate-50 lg:hidden"
           ><Menu size={19} /></button>
@@ -88,7 +143,8 @@ export default function AppLayout() {
       <AnimatePresence>
         {mobileOpen && <div className="fixed inset-0 z-50 lg:hidden">
           <motion.button aria-label="Close navigation backdrop" onClick={() => setMobileOpen(false)} className="absolute inset-0 bg-slate-950/30 backdrop-blur-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} />
-          <motion.aside initial={{ x: "-100%" }} animate={{ x: 0 }} exit={{ x: "-100%" }} transition={{ duration: 0.23, ease: "easeOut" }} className="absolute inset-y-0 left-0 w-[min(88vw,340px)] overflow-y-auto border-r border-slate-200 bg-white p-5 shadow-2xl">
+          <motion.aside id="mobile-navigation" ref={mobileMenuRef} role="dialog" aria-modal="true" aria-labelledby="mobile-navigation-title" initial={{ x: "-100%" }} animate={{ x: 0 }} exit={{ x: "-100%" }} transition={{ duration: 0.23, ease: "easeOut" }} className="absolute inset-y-0 left-0 w-[min(88vw,340px)] overflow-y-auto border-r border-slate-200 bg-white p-5 shadow-2xl">
+            <h2 id="mobile-navigation-title" className="sr-only">PhishGuard navigation</h2>
             <div className="mb-7 flex items-center justify-between"><div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white"><ShieldCheck size={22} /></span><span className="text-lg font-bold">Phish<span className="text-blue-600">Guard</span></span></div><button type="button" onClick={() => setMobileOpen(false)} aria-label="Close menu" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"><X size={19} /></button></div>
             <p className="mb-3 px-2 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">Workspace</p>
             <div className="space-y-1">{navItems(true)}</div>

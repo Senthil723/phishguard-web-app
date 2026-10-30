@@ -18,6 +18,7 @@ function App() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/scanner" element={<URLScanner />} />
           <Route path="/results" element={<ScanResults />} />
+          <Route path="/results/:scanId" element={<ScanResults />} />
           <Route path="/history" element={<ScanHistory />} />
           <Route path="/reports" element={<ReportsAnalytics />} />
           <Route path="/insights" element={<SecurityInsights />} />

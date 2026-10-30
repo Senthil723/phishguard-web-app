@@ -16,17 +16,10 @@ import {
 import { Link, useNavigate } from "react-router-dom";
 import { fadeUp, staggerContainer } from "../animations";
 import { getScans, getScanStats } from "../services/api";
-
-// Convert backend status values into readable labels for the UI.
-function getStatusLabel(status) {
-  if (!status || status === "not_analyzed") {
-    return "Pending Analysis";
-  }
-
-  return status.replaceAll("_", " ").replace(/\b\w/g, (char) =>
-    char.toUpperCase()
-  );
-}
+import {
+  getScanStatusLabel,
+  getScanStatusCategory,
+} from "../utils/scanStatus";
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -51,7 +44,9 @@ export default function Dashboard() {
         !statsData ||
         typeof statsData.total_scans !== "number" ||
         typeof statsData.analyzed_scans !== "number" ||
-        typeof statsData.pending_scans !== "number"
+        typeof statsData.pending_scans !== "number" ||
+        typeof statsData.failed_scans !== "number" ||
+        typeof statsData.unknown_scans !== "number"
       ) {
         throw new Error("Unexpected response from the statistics endpoint.");
       }
@@ -76,6 +71,7 @@ export default function Dashboard() {
     loadDashboard();
   }, [loadDashboard]);
 
+  // Dashboard summary cards.
   const cards = [
     {
       label: "Total URLs Submitted",
@@ -94,9 +90,16 @@ export default function Dashboard() {
     {
       label: "Pending Analysis",
       value: stats?.pending_scans ?? 0,
-      description: "Awaiting real analysis",
+      description: "Awaiting analysis",
       icon: Clock3,
       iconStyle: "bg-amber-50 text-amber-700",
+    },
+    {
+      label: "Failed Analyses",
+      value: stats?.failed_scans ?? 0,
+      description: "Analysis attempts marked failed",
+      icon: AlertTriangle,
+      iconStyle: "bg-red-50 text-red-700",
     },
     {
       label: "Detection Engine",
@@ -105,8 +108,30 @@ export default function Dashboard() {
       icon: ShieldAlert,
       iconStyle: "bg-violet-50 text-violet-700",
     },
+    {
+      label: "Unknown Status",
+      value: stats?.unknown_scans ?? 0,
+      description: "Unrecognized scan statuses",
+      icon: AlertTriangle,
+      iconStyle: "bg-slate-100 text-slate-600",
+    },
   ];
 
+  // Get the correct visual style for each scan status.
+  function getStatusStyle(status) {
+    const category = getScanStatusCategory(status);
+
+    const styles = {
+      pending: "bg-amber-50 text-amber-700",
+      completed: "bg-cyan-50 text-cyan-700",
+      failed: "bg-red-50 text-red-700",
+      unknown: "bg-slate-100 text-slate-600",
+    };
+
+    return styles[category] || styles.unknown;
+  }
+
+  // Display the latest five records.
   const recentScans = useMemo(() => {
     return [...history]
       .sort((a, b) => {
@@ -128,10 +153,9 @@ export default function Dashboard() {
 
   // Open the Results page for the selected database record.
   function handleViewDetails(scan) {
-    navigate("/results", {
+    navigate(`/results/${scan.id}`, {
       state: {
         url: scan.url,
-        scanId: scan.id,
         status: scan.status,
       },
     });
@@ -202,7 +226,7 @@ export default function Dashboard() {
       {/* Summary cards */}
       <motion.div
         variants={fadeUp}
-        className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
+        className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6"
         aria-label="PhishGuard summary"
         aria-busy={loading}
       >
@@ -349,9 +373,13 @@ export default function Dashboard() {
 
                 {/* Status and View Details action */}
                 <div className="flex flex-wrap items-center gap-3 sm:justify-end">
-                  <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
+                  <span
+                    className={`inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${getStatusStyle(
+                      scan.status
+                    )}`}
+                  >
                     <Clock3 size={13} />
-                    {getStatusLabel(scan.status)}
+                    {getScanStatusLabel(scan.status)}
                   </span>
 
                   <motion.button

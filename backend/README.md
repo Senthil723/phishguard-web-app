@@ -34,6 +34,7 @@ If PowerShell blocks activation, you can run the environment's Python directly i
 - Interactive API docs: http://127.0.0.1:8000/docs
 - Health: http://127.0.0.1:8000/api/v1/health
 - Database health: http://127.0.0.1:8000/api/v1/health/database
+- Scan statistics: `GET /api/v1/scans/stats`
 
 In `/docs`, use `POST /api/v1/scans` with:
 
@@ -44,6 +45,14 @@ In `/docs`, use `POST /api/v1/scans` with:
 ```
 
 Then use `GET /api/v1/scans` to view saved submissions.
+
+The statistics endpoint returns database-wide totals for submitted,
+pending, completed, failed, and unrecognized statuses, along with counts
+for each stored status value. `pending` includes `not_analyzed`, `pending`,
+`queued`, `running`, `processing`, and `in_progress`; completed includes
+`analyzed`, `analysed`, and `completed`; failed includes `failed` and
+`error`. Other status values are counted as unrecognized, not pending.
+These statuses describe database records only and are not phishing verdicts.
 
 ## Database
 

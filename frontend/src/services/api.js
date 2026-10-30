@@ -1,5 +1,7 @@
 
-const API_BASE_URL = "http://127.0.0.1:8000/api/v1";
+const API_BASE_URL = (
+  import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000/api/v1"
+).replace(/\/+$/, "");
 
 // Save a submitted URL to the backend database.
 export async function createScan(url) {
@@ -38,13 +40,14 @@ export async function getScans(limit = 20) {
 }
 
 // Fetch one saved scan using its database ID.
-export async function getScanById(scanId) {
+export async function getScanById(scanId, { signal } = {}) {
   if (!Number.isInteger(Number(scanId)) || Number(scanId) < 1) {
     throw new Error("A valid scan ID is required.");
   }
 
   const response = await fetch(
-    `${API_BASE_URL}/scans/${encodeURIComponent(scanId)}`
+    `${API_BASE_URL}/scans/${encodeURIComponent(scanId)}`,
+    { signal }
   );
 
   if (!response.ok) {

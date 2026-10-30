@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from pydantic import BaseModel, ConfigDict, HttpUrl, field_validator
 
@@ -21,3 +21,19 @@ class ScanRead(BaseModel):
     url: HttpUrl
     status: str
     created_at: datetime
+
+    @field_validator("created_at", mode="before")
+    @classmethod
+    def normalize_created_at_timezone(cls, value: datetime) -> datetime:
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
+
+
+class ScanStatsRead(BaseModel):
+    total_scans: int
+    analyzed_scans: int
+    pending_scans: int
+    failed_scans: int
+    unknown_scans: int
+    status_counts: dict[str, int]

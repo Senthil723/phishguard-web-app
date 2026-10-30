@@ -1,15 +1,24 @@
 
-from collections import Counter
-
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.models.scan import Scan
-from app.schemas.scan import ScanCreate, ScanRead
+from app.schemas.scan import ScanCreate, ScanRead, ScanStatsRead
 
 router = APIRouter()
+
+PENDING_STATUSES = {
+    "not_analyzed",
+    "pending",
+    "queued",
+    "running",
+    "processing",
+    "in_progress",
+}
+ANALYZED_STATUSES = {"analyzed", "analysed", "completed"}
+FAILED_STATUSES = {"failed", "error"}
 
 
 @router.post("", response_model=ScanRead, status_code=status.HTTP_201_CREATED)
@@ -37,30 +46,41 @@ def list_scans(
 
 
 @router.get("/stats")
-def get_scan_stats(db: Session = Depends(get_db)) -> dict:
+def get_scan_stats(db: Session = Depends(get_db)) -> ScanStatsRead:
     """Return database-wide scan statistics, without analyzing URLs."""
     total_scans = db.scalar(select(func.count()).select_from(Scan)) or 0
 
     statement = select(Scan.status, func.count(Scan.id)).group_by(Scan.status)
     rows = db.execute(statement).all()
 
-    status_counts = Counter()
+    status_counts = {}
+    pending_scans = 0
+    analyzed_scans = 0
+    failed_scans = 0
+
     for scan_status, count in rows:
-        status_counts[scan_status] = count
+        status_name = str(scan_status or "unknown")
+        status_counts[status_name] = count
+        normalized_status = status_name.strip().lower()
 
-    analyzed_statuses = {"analyzed", "analysed", "completed"}
-    analyzed_scans = sum(
-        count
-        for scan_status, count in status_counts.items()
-        if scan_status in analyzed_statuses
+        if normalized_status in PENDING_STATUSES:
+            pending_scans += count
+        elif normalized_status in ANALYZED_STATUSES:
+            analyzed_scans += count
+        elif normalized_status in FAILED_STATUSES:
+            failed_scans += count
+
+    return ScanStatsRead(
+        total_scans=total_scans,
+        analyzed_scans=analyzed_scans,
+        pending_scans=pending_scans,
+        failed_scans=failed_scans,
+        unknown_scans=total_scans
+        - analyzed_scans
+        - pending_scans
+        - failed_scans,
+        status_counts=status_counts,
     )
-
-    return {
-        "total_scans": total_scans,
-        "analyzed_scans": analyzed_scans,
-        "pending_scans": total_scans - analyzed_scans,
-        "status_counts": dict(status_counts),
-    }
 
 
 @router.get("/{scan_id}", response_model=ScanRead)

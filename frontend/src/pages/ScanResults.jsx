@@ -1,6 +1,6 @@
 
 import { useEffect, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { AnimatePresence, motion } from "motion/react";
 import {
   ArrowRight,
@@ -24,6 +24,7 @@ import {
 } from "../animations";
 
 import { getScanById } from "../services/api";
+import { getScanStatusLabel } from "../utils/scanStatus";
 
 function formatDateTime(value) {
   if (!value) return "Not recorded";
@@ -40,30 +41,22 @@ function formatDateTime(value) {
   });
 }
 
-function getStatusLabel(status) {
-  if (!status || status === "not_analyzed") {
-    return "Pending Analysis";
-  }
-
-  return status.replaceAll("_", " ").replace(/\b\w/g, (character) =>
-    character.toUpperCase()
-  );
-}
-
 function ScanResults() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { scanId: routeScanId } = useParams();
 
-  // The Dashboard and URL Scanner pass the selected database ID here.
-  const scanId = location.state?.scanId;
+  // Keep the state fallback for existing links while supporting refreshable URLs.
+  const scanId = routeScanId || location.state?.scanId;
   const passedUrl = location.state?.url || "";
 
   const [scan, setScan] = useState(null);
   const [isLoading, setIsLoading] = useState(Boolean(scanId));
   const [error, setError] = useState("");
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
-    let isActive = true;
+    const controller = new AbortController();
 
     async function loadScan() {
       if (!scanId) {
@@ -77,13 +70,12 @@ function ScanResults() {
       setError("");
 
       try {
-        const savedScan = await getScanById(scanId);
-
-        if (isActive) {
-          setScan(savedScan);
-        }
+        const savedScan = await getScanById(scanId, {
+          signal: controller.signal,
+        });
+        setScan(savedScan);
       } catch (requestError) {
-        if (isActive) {
+        if (!controller.signal.aborted) {
           setScan(null);
           setError(
             requestError.message ||
@@ -91,7 +83,7 @@ function ScanResults() {
           );
         }
       } finally {
-        if (isActive) {
+        if (!controller.signal.aborted) {
           setIsLoading(false);
         }
       }
@@ -100,34 +92,19 @@ function ScanResults() {
     loadScan();
 
     return () => {
-      isActive = false;
+      controller.abort();
     };
-  }, [scanId]);
+  }, [scanId, retryCount]);
 
   const scannedUrl = scan?.url || passedUrl;
   const hasScannedUrl = Boolean(scannedUrl);
-  const statusLabel = getStatusLabel(scan?.status);
+  const statusLabel = getScanStatusLabel(scan?.status);
 
   function handleRetry() {
     if (!scanId) return;
 
-    setError("");
-    setScan(null);
     setIsLoading(true);
-
-    getScanById(scanId)
-      .then((savedScan) => {
-        setScan(savedScan);
-      })
-      .catch((requestError) => {
-        setError(
-          requestError.message ||
-            "Unable to load this scan record. Please try again."
-        );
-      })
-      .finally(() => {
-        setIsLoading(false);
-      });
+    setRetryCount((count) => count + 1);
   }
 
   return (

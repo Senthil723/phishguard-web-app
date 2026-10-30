@@ -1,6 +1,6 @@
 
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "motion/react";
 import { fadeUp, pressFeedback, staggerContainer } from "../animations";
@@ -19,18 +19,28 @@ export default function URLScanner() {
 
   const [url, setUrl] = useState("");
   const [message, setMessage] = useState("");
+  const [urlError, setUrlError] = useState(false);
   const [scannedUrl, setScannedUrl] = useState("");
   const [isScanning, setIsScanning] = useState(false);
+  const isSubmittingRef = useRef(false);
 
   async function handleScan(event) {
     event.preventDefault();
 
-    if (isScanning) return;
+    if (isSubmittingRef.current) return;
 
     const trimmedUrl = url.trim();
 
     if (!trimmedUrl) {
       setMessage("Please enter a website URL.");
+      setUrlError(true);
+      setScannedUrl("");
+      return;
+    }
+
+    if (trimmedUrl.length > 2048) {
+      setMessage("The URL must be 2048 characters or fewer.");
+      setUrlError(true);
       setScannedUrl("");
       return;
     }
@@ -54,64 +64,86 @@ export default function URLScanner() {
       }
 
       normalizedUrl = parsedUrl.href;
+
+      if (normalizedUrl.length > 2048) {
+        setScannedUrl("");
+        setMessage("The URL must be 2048 characters or fewer.");
+        setUrlError(true);
+        return;
+      }
     } catch {
       setScannedUrl("");
       setMessage("Please enter a valid URL, such as example.com.");
+      setUrlError(true);
       return;
     }
 
     // Step 2: Save the URL through the backend API.
+    isSubmittingRef.current = true;
     setIsScanning(true);
     setMessage("");
+    setUrlError(false);
     setScannedUrl("");
 
     try {
-      const savedScan = await createScan(normalizedUrl);
+      let savedScan;
 
-      // Step 3: Keep the existing browser-tab history feature.
-      const historyEntry = {
-        id: savedScan.id,
-        url: savedScan.url,
-        status: "Demo: Not analyzed",
-        time: new Date(savedScan.created_at).toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-        type: "pending",
-        createdAt: savedScan.created_at,
-      };
+      try {
+        savedScan = await createScan(normalizedUrl);
+      } catch (error) {
+        console.error("Failed to save scan:", error);
+        setMessage(
+          "Unable to save this URL. Check that the backend is running, then try again."
+        );
+        setUrlError(false);
+        return;
+      }
 
-      const existingHistory = JSON.parse(
-        sessionStorage.getItem("phishguardHistory") || "[]"
-      );
+      // Keep browser-session history as a convenience; the backend record is primary.
+      try {
+        const historyEntry = {
+          id: savedScan.id,
+          url: savedScan.url,
+          status: "Demo: Not analyzed",
+          time: new Date(savedScan.created_at).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+          type: "pending",
+          createdAt: savedScan.created_at,
+        };
 
-      const updatedHistory = [
-        historyEntry,
-        ...(Array.isArray(existingHistory) ? existingHistory : []),
-      ].slice(0, 20);
+        const existingHistory = JSON.parse(
+          sessionStorage.getItem("phishguardHistory") || "[]"
+        );
 
-      sessionStorage.setItem(
-        "phishguardHistory",
-        JSON.stringify(updatedHistory)
-      );
+        const updatedHistory = [
+          historyEntry,
+          ...(Array.isArray(existingHistory) ? existingHistory : []),
+        ].slice(0, 20);
+
+        sessionStorage.setItem(
+          "phishguardHistory",
+          JSON.stringify(updatedHistory)
+        );
+      } catch (storageError) {
+        console.warn(
+          "Scan was saved, but browser session history could not be updated:",
+          storageError
+        );
+      }
 
       setScannedUrl(savedScan.url);
 
-      // Step 4: Open the Results page with the saved scan details.
-      navigate("/results", {
+      // Open the Results page using the saved database record ID.
+      navigate(`/results/${savedScan.id}`, {
         state: {
           url: savedScan.url,
-          scanId: savedScan.id,
           status: savedScan.status,
         },
       });
-    } catch (error) {
-      console.error("Failed to save scan:", error);
-
-      setMessage(
-        "Unable to save this URL. Check that the backend is running, then try again."
-      );
     } finally {
+      isSubmittingRef.current = false;
       setIsScanning(false);
     }
   }
@@ -119,6 +151,7 @@ export default function URLScanner() {
   function resetScanner() {
     setUrl("");
     setMessage("");
+    setUrlError(false);
     setScannedUrl("");
   }
 
@@ -159,7 +192,7 @@ export default function URLScanner() {
             </p>
           </div>
 
-          <form onSubmit={handleScan}>
+          <form onSubmit={handleScan} aria-busy={isScanning}>
             <label
               htmlFor="website-url"
               className="mb-2 block text-sm font-medium text-slate-700"
@@ -174,10 +207,18 @@ export default function URLScanner() {
                 <input
                   id="website-url"
                   type="text"
+                  inputMode="url"
+                  autoComplete="url"
+                  maxLength={2048}
                   value={url}
+                  aria-invalid={urlError}
+                  aria-describedby={
+                    urlError ? "website-url-message" : undefined
+                  }
                   onChange={(event) => {
                     setUrl(event.target.value);
                     setMessage("");
+                    setUrlError(false);
                     setScannedUrl("");
                   }}
                   placeholder="https://example.com"
@@ -211,7 +252,7 @@ export default function URLScanner() {
               >
                 <div className="mt-5 flex gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
                   <AlertTriangle className="h-5 w-5 shrink-0" />
-                  <p>{message}</p>
+                  <p id="website-url-message">{message}</p>
                 </div>
               </motion.div>
             )}

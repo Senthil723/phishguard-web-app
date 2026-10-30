@@ -14,28 +14,10 @@ import {
 } from "lucide-react";
 import { fadeUp, staggerContainer } from "../animations";
 import { getScans } from "../services/api";
-
-// Convert backend status values into readable labels.
-// This changes the display only, not the saved database status.
-function formatStatus(status) {
-  const normalized = String(status || "")
-    .trim()
-    .toLowerCase();
-
-  if (normalized === "not_analyzed" || normalized === "pending") {
-    return "Pending Analysis";
-  }
-
-  if (["analyzed", "analysed", "completed"].includes(normalized)) {
-    return "Analysis Completed";
-  }
-
-  return normalized
-    ? normalized
-        .replaceAll("_", " ")
-        .replace(/\b\w/g, (character) => character.toUpperCase())
-    : "Unknown";
-}
+import {
+  getScanStatusCategory,
+  getScanStatusLabel,
+} from "../utils/scanStatus";
 
 // Export the currently filtered records as a CSV file.
 function downloadCsv(rows) {
@@ -49,7 +31,7 @@ function downloadCsv(rows) {
     ...rows.map((row) => [
       row.id,
       row.url,
-      formatStatus(row.status),
+      getScanStatusLabel(row.status),
       row.createdAt ? new Date(row.createdAt).toLocaleString() : "",
       "Backend database",
     ]),
@@ -124,13 +106,10 @@ export default function ScanHistory() {
         .toLowerCase()
         .includes(query.toLowerCase());
 
-      const rowStatus = String(row.status || "").toLowerCase();
+      const rowStatus = getScanStatusCategory(row.status);
 
       const matchesStatus =
-        status === "all" ||
-        (status === "pending"
-          ? rowStatus === "not_analyzed" || rowStatus === "pending"
-          : rowStatus.includes(status));
+        status === "all" || rowStatus === status;
 
       const createdAt = row.createdAt
         ? new Date(row.createdAt).getTime()
@@ -172,7 +151,8 @@ export default function ScanHistory() {
 
           <p className="mt-3 text-sm leading-6 text-slate-500">
             Review URLs saved in the PhishGuard backend database.
-            Detection results are not available yet.
+            Detection results are not available yet. Showing up to the latest
+            100 saved records.
           </p>
         </div>
 
@@ -233,6 +213,9 @@ export default function ScanHistory() {
             >
               <option value="all">All statuses</option>
               <option value="pending">Pending Analysis</option>
+              <option value="completed">Analysis Completed</option>
+              <option value="failed">Analysis Failed</option>
+              <option value="unknown">Other / Unknown</option>
             </select>
 
             <select
@@ -305,9 +288,8 @@ export default function ScanHistory() {
                         <button
                           type="button"
                           onClick={() =>
-                            navigate("/results", {
+                            navigate(`/results/${row.id}`, {
                               state: {
-                                scanId: row.id,
                                 url: row.url,
                               },
                             })
@@ -324,7 +306,7 @@ export default function ScanHistory() {
                     <td className="px-5 py-4">
                       <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
                         <Clock3 size={13} />
-                        {formatStatus(row.status)}
+                        {getScanStatusLabel(row.status)}
                       </span>
                     </td>
 
