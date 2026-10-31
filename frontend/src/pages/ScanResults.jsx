@@ -1,30 +1,27 @@
-
-import { useEffect, useState } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
-import { AnimatePresence, motion } from "motion/react";
+import { useEffect, useRef, useState } from "react";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import {
+  AlertTriangle,
   ArrowRight,
   CheckCircle2,
   Clock3,
   FileSearch,
-  Globe,
+  HelpCircle,
   Info,
   LoaderCircle,
+  RefreshCw,
   ShieldAlert,
   ShieldQuestion,
-  Sparkles,
-  RefreshCw,
-  AlertTriangle,
+  XCircle,
 } from "lucide-react";
 
+import { fadeUp, pressFeedback, staggerContainer } from "../animations";
+import { ApiError, getScanById } from "../services/api";
 import {
-  fadeUp,
-  pressFeedback,
-  staggerContainer,
-} from "../animations";
-
-import { getScanById } from "../services/api";
-import { getScanStatusLabel } from "../utils/scanStatus";
+  getScanStatusCategory,
+  getScanStatusLabel,
+} from "../utils/scanStatus";
 
 function formatDateTime(value) {
   if (!value) return "Not recorded";
@@ -41,10 +38,89 @@ function formatDateTime(value) {
   });
 }
 
+function getStatusAppearance(status) {
+  const category = getScanStatusCategory(status);
+
+  const appearances = {
+    pending: {
+      icon: Clock3,
+      className: "border-amber-200 bg-amber-50 text-amber-800",
+    },
+    completed: {
+      icon: CheckCircle2,
+      className: "border-cyan-200 bg-cyan-50 text-cyan-800",
+    },
+    failed: {
+      icon: XCircle,
+      className: "border-red-200 bg-red-50 text-red-800",
+    },
+    unknown: {
+      icon: HelpCircle,
+      className: "border-slate-200 bg-slate-100 text-slate-700",
+    },
+  };
+
+  return appearances[category] || appearances.unknown;
+}
+
+function getRetrievalError(error) {
+  if (error instanceof ApiError && error.kind === "not-found") {
+    return {
+      title: "Scan record not found",
+      message:
+        "This saved record could not be found. It may have been removed or the ID may be incorrect.",
+      canRetry: false,
+    };
+  }
+
+  if (error instanceof ApiError && error.kind === "invalid-id") {
+    return {
+      title: "Invalid scan ID",
+      message: "The requested scan ID is not valid. Choose a saved record from Scan History.",
+      canRetry: false,
+    };
+  }
+
+  if (error instanceof ApiError && error.kind === "network") {
+    return {
+      title: "PhishGuard is unavailable",
+      message:
+        "Could not connect to the server to retrieve this saved record. Check your connection and try again.",
+      canRetry: true,
+    };
+  }
+
+  if (error instanceof ApiError && error.kind === "http") {
+    if (error.status >= 500) {
+      return {
+        title: "The server could not retrieve this record",
+        message:
+          "The server encountered a temporary problem. Please try again.",
+        canRetry: true,
+      };
+    }
+
+    return {
+      title: "Could not retrieve scan record",
+      message:
+        "The server could not complete this request. Return to Scan History and choose a saved record.",
+      canRetry: false,
+    };
+  }
+
+  return {
+    title: "Unexpected scan record response",
+    message:
+      "The server response did not contain the expected record details. Please return to Scan History.",
+    canRetry: false,
+  };
+}
+
 function ScanResults() {
   const navigate = useNavigate();
   const location = useLocation();
   const { scanId: routeScanId } = useParams();
+  const shouldReduceMotion = useReducedMotion();
 
   // Keep the state fallback for existing links while supporting refreshable URLs.
   const scanId = routeScanId || location.state?.scanId;
@@ -52,8 +128,9 @@ function ScanResults() {
 
   const [scan, setScan] = useState(null);
   const [isLoading, setIsLoading] = useState(Boolean(scanId));
-  const [error, setError] = useState("");
+  const [error, setError] = useState(null);
   const [retryCount, setRetryCount] = useState(0);
+  const retryInFlightRef = useRef(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -62,12 +139,13 @@ function ScanResults() {
       if (!scanId) {
         setScan(null);
         setIsLoading(false);
-        setError("");
+        setError(null);
         return;
       }
 
       setIsLoading(true);
-      setError("");
+      setScan(null);
+      setError(null);
 
       try {
         const savedScan = await getScanById(scanId, {
@@ -76,14 +154,13 @@ function ScanResults() {
         setScan(savedScan);
       } catch (requestError) {
         if (!controller.signal.aborted) {
+          console.error("Failed to load scan record:", requestError);
           setScan(null);
-          setError(
-            requestError.message ||
-              "Unable to load this scan record. Please try again."
-          );
+          setError(getRetrievalError(requestError));
         }
       } finally {
         if (!controller.signal.aborted) {
+          retryInFlightRef.current = false;
           setIsLoading(false);
         }
       }
@@ -98,11 +175,17 @@ function ScanResults() {
 
   const scannedUrl = scan?.url || passedUrl;
   const hasScannedUrl = Boolean(scannedUrl);
-  const statusLabel = getScanStatusLabel(scan?.status);
+  const status = scan?.status;
+  const statusCategory = getScanStatusCategory(status);
+  const statusLabel = getScanStatusLabel(status);
+  const statusAppearance = getStatusAppearance(status);
+  const StatusIcon = statusAppearance.icon;
 
   function handleRetry() {
-    if (!scanId) return;
+    if (!scanId || isLoading || retryInFlightRef.current) return;
 
+    retryInFlightRef.current = true;
+    setError(null);
     setIsLoading(true);
     setRetryCount((count) => count + 1);
   }
@@ -111,46 +194,64 @@ function ScanResults() {
     <div className="text-slate-900">
       <motion.main
         className="mx-auto max-w-7xl px-0 py-2"
-        variants={staggerContainer}
-        initial="hidden"
-        animate="show"
+        variants={shouldReduceMotion ? undefined : staggerContainer}
+        initial={shouldReduceMotion ? false : "hidden"}
+        animate={shouldReduceMotion ? undefined : "show"}
+        aria-labelledby="scan-results-title"
       >
-        {/* Page heading */}
-        <motion.div variants={fadeUp} className="mb-8">
-          <div className="mb-3 flex items-center gap-2 text-sm text-blue-700">
-            <FileSearch size={17} />
-            <span>Security Analysis</span>
-          </div>
-
-          <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
-            Scan Results
-          </h2>
-
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500 sm:text-base">
-            Review a saved URL submission and its current analysis status.
-            Real phishing detection is not connected yet.
-          </p>
-        </motion.div>
-
-        {/* Honest prototype notice */}
-        <motion.div
-          variants={fadeUp}
-          className="mb-8 flex gap-3 rounded-2xl border border-amber-200 bg-amber-50/70 p-4"
+        <motion.header
+          variants={shouldReduceMotion ? undefined : fadeUp}
+          className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"
         >
-          <Info className="mt-0.5 shrink-0 text-amber-700" size={21} />
-
           <div>
-            <p className="font-semibold text-amber-800">
-              Demonstration mode
-            </p>
-            <p className="mt-1 text-sm leading-6 text-slate-600">
-              PhishGuard retrieves saved submission details from its
-              database. A machine-learning model or threat intelligence
-              service has not analyzed this URL. No safety verdict is
-              available.
+            <div className="mb-3 inline-flex items-center gap-2 text-sm font-semibold text-blue-700">
+              <FileSearch aria-hidden="true" size={17} />
+              Saved investigation record
+            </div>
+
+            <h1
+              id="scan-results-title"
+              className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl"
+            >
+              Scan Results
+            </h1>
+
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600 sm:text-base">
+              Review the submitted URL and the current status returned by the
+              PhishGuard backend.
             </p>
           </div>
-        </motion.div>
+
+          <Link
+            to="/history"
+            className="inline-flex w-fit items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+          >
+            <Clock3 aria-hidden="true" size={16} />
+            Scan History
+          </Link>
+        </motion.header>
+
+        <motion.section
+          variants={shouldReduceMotion ? undefined : fadeUp}
+          className="mb-6 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50/70 p-4"
+          aria-label="Detection engine status"
+        >
+          <Info
+            aria-hidden="true"
+            className="mt-0.5 shrink-0 text-amber-700"
+            size={21}
+          />
+          <div>
+            <h2 className="font-semibold text-amber-900">
+              Detection engine not connected
+            </h2>
+            <p className="mt-1 text-sm leading-6 text-slate-700">
+              This prototype saves and retrieves URL submissions. It does not
+              currently perform phishing classification, threat intelligence
+              checks, or produce a safety verdict.
+            </p>
+          </div>
+        </motion.section>
 
         {location.state?.submissionNotice && (
           <div
@@ -168,295 +269,323 @@ function ScanResults() {
           </div>
         )}
 
-        {/* Loading state */}
-        <AnimatePresence mode="wait">
+        <AnimatePresence mode="wait" initial={false}>
           {isLoading && (
             <motion.div
               key="loading"
               role="status"
               aria-live="polite"
-              variants={fadeUp}
-              initial="hidden"
-              animate="show"
-              exit={{ opacity: 0 }}
-              className="mb-8 flex items-center gap-3 rounded-2xl border border-blue-200 bg-blue-50 p-5 text-blue-800"
+              aria-label="Retrieving saved scan record"
+              initial={shouldReduceMotion ? false : { opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={shouldReduceMotion ? undefined : { opacity: 0 }}
+              transition={{ duration: shouldReduceMotion ? 0 : 0.18 }}
+              className="mb-6 flex items-center gap-3 rounded-2xl border border-blue-200 bg-blue-50 p-5 text-blue-800"
             >
-              <LoaderCircle className="h-5 w-5 animate-spin" />
+              <LoaderCircle
+                aria-hidden="true"
+                className="h-5 w-5 animate-spin motion-reduce:animate-none"
+                size={20}
+              />
               <div>
-                <p className="font-semibold">Loading scan record</p>
+                <p className="font-semibold">Loading saved record</p>
                 <p className="mt-1 text-sm text-blue-700">
-                  Retrieving the saved details from the backend...
+                  Retrieving the submitted details from the backend...
                 </p>
               </div>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Error state */}
-        <AnimatePresence>
+        <AnimatePresence initial={false}>
           {!isLoading && error && (
-            <motion.div
+            <motion.section
               key="error"
               role="alert"
-              initial={{ opacity: 0, y: 8 }}
+              aria-live="assertive"
+              initial={shouldReduceMotion ? false : { opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              className="mb-8 rounded-2xl border border-red-200 bg-red-50 p-5"
+              exit={shouldReduceMotion ? undefined : { opacity: 0, y: -8 }}
+              transition={{ duration: shouldReduceMotion ? 0 : 0.2 }}
+              className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-5"
+              aria-labelledby="scan-error-title"
             >
               <div className="flex items-start gap-3">
-                <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-red-700" />
+                <AlertTriangle
+                  aria-hidden="true"
+                  className="mt-0.5 h-5 w-5 shrink-0 text-red-700"
+                />
 
                 <div className="min-w-0 flex-1">
-                  <h3 className="font-semibold text-red-800">
-                    Could not load scan record
-                  </h3>
-
-                  <p className="mt-2 break-words text-sm leading-6 text-red-700">
-                    {error}
+                  <h2 id="scan-error-title" className="font-semibold text-red-900">
+                    {error.title}
+                  </h2>
+                  <p className="mt-2 text-sm leading-6 text-red-800">
+                    {error.message}
                   </p>
 
-                  {scanId && (
-                    <button
-                      type="button"
-                      onClick={handleRetry}
-                      className="mt-4 inline-flex items-center gap-2 rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-semibold text-red-800 transition hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-400"
+                  <div className="mt-4 flex flex-wrap gap-3">
+                    {error.canRetry && (
+                      <button
+                        type="button"
+                        onClick={handleRetry}
+                        disabled={isLoading}
+                        className="inline-flex items-center gap-2 rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-semibold text-red-900 transition hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        <RefreshCw aria-hidden="true" size={16} />
+                        Try again
+                      </button>
+                    )}
+                    <Link
+                      to="/history"
+                      className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-red-900 transition hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
                     >
-                      <RefreshCw size={16} />
-                      Try again
-                    </button>
-                  )}
+                      Return to Scan History
+                    </Link>
+                  </div>
                 </div>
               </div>
-            </motion.div>
+            </motion.section>
           )}
         </AnimatePresence>
 
-        {/* No selected record */}
         {!isLoading && !error && !hasScannedUrl && (
           <motion.section
-            variants={fadeUp}
-            className="mb-8 rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm sm:p-10"
+            variants={shouldReduceMotion ? undefined : fadeUp}
+            className="mb-6 rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm sm:p-10"
           >
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-blue-700">
-              <FileSearch size={27} />
+              <FileSearch aria-hidden="true" size={27} />
             </div>
 
-            <h3 className="mt-4 text-lg font-semibold">
-              No scan selected
-            </h3>
-
-            <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">
-              Open a saved record from Dashboard or Scan History, or
-              submit a URL from the URL Scanner to view its details.
+            <h2 className="mt-4 text-lg font-semibold">No scan selected</h2>
+            <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-600">
+              Open a saved record from Scan History, or submit a URL through
+              the URL Scanner.
             </p>
 
             <motion.button
               type="button"
               onClick={() => navigate("/scanner")}
-              {...pressFeedback}
-              className="mt-6 inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2"
+              {...(shouldReduceMotion ? {} : pressFeedback)}
+              className="mt-6 inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white transition-colors hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 motion-reduce:transition-none"
             >
               Open URL Scanner
-              <ArrowRight size={18} />
+              <ArrowRight aria-hidden="true" size={18} />
             </motion.button>
           </motion.section>
         )}
 
-        {/* Selected URL record */}
         {!isLoading && !error && hasScannedUrl && (
           <>
             <motion.section
-              variants={fadeUp}
-              className="mb-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7"
+              variants={shouldReduceMotion ? undefined : fadeUp}
+              className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7"
+              aria-labelledby="submitted-url-title"
             >
               <div className="mb-5 flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
-                  <Globe size={22} />
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
+                  <FileSearch aria-hidden="true" size={22} />
                 </div>
-
-                <div className="min-w-0">
-                  <h3 className="font-semibold">Submitted URL</h3>
-                  <p className="mt-1 text-sm text-slate-500">
+                <div>
+                  <h2 id="submitted-url-title" className="font-semibold">
+                    Submitted URL
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-600">
                     Saved submission details
                   </p>
                 </div>
               </div>
 
-              <div className="break-all rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-700">
+              <p className="break-all rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-800">
                 {scannedUrl}
-              </div>
+              </p>
 
-              <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              <dl className="mt-5 grid gap-4 sm:grid-cols-2">
                 <div className="rounded-xl bg-slate-50 p-4">
-                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                  <dt className="text-xs font-medium uppercase tracking-wide text-slate-600">
                     Database record ID
-                  </p>
-                  <p className="mt-2 font-semibold text-slate-800">
+                  </dt>
+                  <dd className="mt-2 break-all font-semibold text-slate-900">
                     {scan?.id ?? scanId ?? "Unavailable"}
-                  </p>
+                  </dd>
                 </div>
 
                 <div className="rounded-xl bg-slate-50 p-4">
-                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                  <dt className="text-xs font-medium uppercase tracking-wide text-slate-600">
                     Submitted at
-                  </p>
-                  <p className="mt-2 text-sm font-semibold text-slate-800">
+                  </dt>
+                  <dd className="mt-2 text-sm font-semibold text-slate-900">
                     {formatDateTime(scan?.created_at)}
-                  </p>
+                  </dd>
                 </div>
-              </div>
+              </dl>
             </motion.section>
 
-            {/* Actual saved status, with no invented risk score */}
-            <motion.div
-              variants={staggerContainer}
-              className="mb-8 grid gap-5 md:grid-cols-3"
+            <motion.section
+              variants={shouldReduceMotion ? undefined : staggerContainer}
+              className="mb-6 grid gap-4 md:grid-cols-3"
+              aria-label="Record status summary"
             >
-              <motion.section
-                variants={fadeUp}
+              <motion.div
+                variants={shouldReduceMotion ? undefined : fadeUp}
+                className={`rounded-2xl border p-5 ${statusAppearance.className}`}
+              >
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <h2 className="text-sm font-semibold">Saved record status</h2>
+                  <StatusIcon aria-hidden="true" size={22} />
+                </div>
+                <p className="break-words text-xl font-bold">
+                  {statusCategory === "unknown"
+                    ? `Unknown status: ${statusLabel}`
+                    : statusLabel}
+                </p>
+                <p className="mt-2 text-sm leading-5 opacity-90">
+                  Status reported by the backend. It is not a phishing verdict.
+                </p>
+              </motion.div>
+
+              <motion.div
+                variants={shouldReduceMotion ? undefined : fadeUp}
                 className="rounded-2xl border border-amber-200 bg-white p-5"
               >
-                <div className="mb-4 flex items-center justify-between">
-                  <span className="text-sm text-slate-500">
-                    Saved record status
-                  </span>
-                  <ShieldQuestion className="text-amber-700" size={22} />
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <h2 className="text-sm font-semibold text-slate-700">
+                    Detection engine
+                  </h2>
+                  <ShieldAlert
+                    aria-hidden="true"
+                    className="text-amber-700"
+                    size={22}
+                  />
                 </div>
-
-                <p className="break-words text-xl font-bold text-amber-800">
-                  {statusLabel}
+                <p className="text-xl font-bold text-amber-900">
+                  Not connected
                 </p>
-
-                <p className="mt-2 text-sm leading-5 text-slate-500">
-                  Status returned by the backend database.
+                <p className="mt-2 text-sm leading-5 text-slate-600">
+                  No model or security analysis service is connected.
                 </p>
-              </motion.section>
+              </motion.div>
 
-              <motion.section
-                variants={fadeUp}
+              <motion.div
+                variants={shouldReduceMotion ? undefined : fadeUp}
                 className="rounded-2xl border border-slate-200 bg-white p-5"
               >
-                <div className="mb-4 flex items-center justify-between">
-                  <span className="text-sm text-slate-500">Risk score</span>
-                  <ShieldAlert className="text-slate-500" size={22} />
-                </div>
-
-                <p className="text-xl font-bold text-slate-700">
-                  Unavailable
-                </p>
-
-                <p className="mt-2 text-sm leading-5 text-slate-500">
-                  No detection score has been calculated.
-                </p>
-              </motion.section>
-
-              <motion.section
-                variants={fadeUp}
-                className="rounded-2xl border border-slate-200 bg-white p-5"
-              >
-                <div className="mb-4 flex items-center justify-between">
-                  <span className="text-sm text-slate-500">
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <h2 className="text-sm font-semibold text-slate-700">
                     Submission time
-                  </span>
-                  <Clock3 className="text-slate-500" size={22} />
+                  </h2>
+                  <Clock3
+                    aria-hidden="true"
+                    className="text-slate-500"
+                    size={22}
+                  />
                 </div>
-
-                <p className="text-xl font-bold text-slate-700">
+                <p className="text-xl font-bold text-slate-900">
                   {scan?.created_at ? "Recorded" : "Unavailable"}
                 </p>
-
-                <p className="mt-2 text-sm leading-5 text-slate-500">
+                <p className="mt-2 text-sm leading-5 text-slate-600">
                   {formatDateTime(scan?.created_at)}
                 </p>
-              </motion.section>
-            </motion.div>
+              </motion.div>
+            </motion.section>
 
-            {/* Current capabilities */}
             <motion.section
-              variants={fadeUp}
-              className="mb-8 rounded-2xl border border-slate-200 bg-white p-5 sm:p-7"
+              variants={shouldReduceMotion ? undefined : fadeUp}
+              className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 sm:p-7"
+              aria-labelledby="analysis-availability-title"
             >
-              <div className="mb-6 flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-50 text-blue-700">
-                  <Sparkles size={21} />
+              <div className="mb-5 flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cyan-50 text-cyan-800">
+                  <Info aria-hidden="true" size={21} />
                 </div>
-
                 <div>
-                  <h3 className="font-semibold">Analysis details</h3>
-                  <p className="mt-1 text-sm text-slate-500">
-                    Current implementation and future capabilities
+                  <h2
+                    id="analysis-availability-title"
+                    className="font-semibold text-slate-900"
+                  >
+                    Analysis information
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Available record details and current limitations
                   </p>
                 </div>
               </div>
 
-              <div className="space-y-4">
-                <div className="flex items-start gap-3 rounded-xl border border-slate-200 p-4">
+              <div className="divide-y divide-slate-100">
+                <div className="flex items-start gap-3 py-4 first:pt-0">
                   <CheckCircle2
+                    aria-hidden="true"
                     className="mt-0.5 shrink-0 text-blue-700"
                     size={20}
                   />
-
                   <div>
-                    <p className="font-medium">Database record retrieved</p>
-                    <p className="mt-1 text-sm leading-6 text-slate-500">
-                      The application loaded the selected URL submission
-                      from the backend.
+                    <h3 className="font-medium text-slate-900">
+                      Submission record retrieved
+                    </h3>
+                    <p className="mt-1 text-sm leading-6 text-slate-600">
+                      The backend returned this URL, record ID, status, and
+                      submission timestamp.
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50/50 p-4">
+                <div className="flex items-start gap-3 py-4">
                   <ShieldQuestion
+                    aria-hidden="true"
                     className="mt-0.5 shrink-0 text-amber-700"
                     size={20}
                   />
-
                   <div>
-                    <p className="font-medium">Phishing detection</p>
+                    <h3 className="font-medium text-slate-900">
+                      Phishing classification unavailable
+                    </h3>
                     <p className="mt-1 text-sm leading-6 text-slate-600">
-                      Pending integration with a trained machine-learning
-                      model or a suitable security analysis service.
+                      No prediction, confidence score, risk score, or
+                      detection explanation is available because a detection
+                      model has not been integrated.
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-start gap-3 rounded-xl border border-slate-200 p-4">
-                  <ShieldQuestion
+                <div className="flex items-start gap-3 py-4 last:pb-0">
+                  <Info
+                    aria-hidden="true"
                     className="mt-0.5 shrink-0 text-slate-500"
                     size={20}
                   />
-
                   <div>
-                    <p className="font-medium">Threat intelligence checks</p>
-                    <p className="mt-1 text-sm leading-6 text-slate-500">
-                      Domain reputation, certificate details, and threat
-                      feed checks are not connected.
+                    <h3 className="font-medium text-slate-900">
+                      Threat intelligence unavailable
+                    </h3>
+                    <p className="mt-1 text-sm leading-6 text-slate-600">
+                      Domain reputation and external threat-feed checks are
+                      not connected.
                     </p>
                   </div>
                 </div>
               </div>
             </motion.section>
 
-            {/* Page actions */}
             <motion.div
-              variants={fadeUp}
+              variants={shouldReduceMotion ? undefined : fadeUp}
               className="flex flex-col gap-3 sm:flex-row"
             >
               <motion.button
                 type="button"
                 onClick={() => navigate("/scanner")}
-                {...pressFeedback}
-                className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 py-3 font-semibold text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2"
+                {...(shouldReduceMotion ? {} : pressFeedback)}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 py-3 font-semibold text-white transition-colors hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 motion-reduce:transition-none"
               >
-                Scan Another URL
-                <ArrowRight size={18} />
+                Submit Another URL
+                <ArrowRight aria-hidden="true" size={18} />
               </motion.button>
 
               <motion.button
                 type="button"
                 onClick={() => navigate("/dashboard")}
-                {...pressFeedback}
-                className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-6 py-3 font-semibold text-slate-700 transition-colors hover:border-slate-400 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2"
+                {...(shouldReduceMotion ? {} : pressFeedback)}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-6 py-3 font-semibold text-slate-700 transition-colors hover:border-slate-400 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 motion-reduce:transition-none"
               >
                 Back to Dashboard
               </motion.button>
@@ -465,12 +594,11 @@ function ScanResults() {
         )}
 
         <motion.p
-          variants={fadeUp}
-          className="mt-8 text-center text-xs leading-5 text-slate-500"
+          variants={shouldReduceMotion ? undefined : fadeUp}
+          className="mt-8 text-center text-xs leading-5 text-slate-600"
         >
-          PhishGuard prototype · A saved submission is not a security
-          verdict. Do not rely on this page to determine whether a website
-          is safe.
+          PhishGuard prototype · A saved submission is not a security verdict.
+          Do not rely on this page to determine whether a website is safe.
         </motion.p>
       </motion.main>
     </div>

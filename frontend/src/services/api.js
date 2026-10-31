@@ -87,25 +87,71 @@ export async function getScans(limit = 20) {
 // Fetch one saved scan using its database ID.
 export async function getScanById(scanId, { signal } = {}) {
   if (!Number.isInteger(Number(scanId)) || Number(scanId) < 1) {
-    throw new Error("A valid scan ID is required.");
+    throw new ApiError("A valid scan ID is required.", {
+      kind: "invalid-id",
+    });
   }
 
-  const response = await fetch(
-    `${API_BASE_URL}/scans/${encodeURIComponent(scanId)}`,
-    { signal }
-  );
+  let response;
+
+  try {
+    response = await fetch(
+      `${API_BASE_URL}/scans/${encodeURIComponent(scanId)}`,
+      { signal }
+    );
+  } catch (error) {
+    if (error.name === "AbortError") throw error;
+
+    throw new ApiError("Unable to connect to the PhishGuard server.", {
+      kind: "network",
+      cause: error,
+    });
+  }
 
   if (!response.ok) {
     if (response.status === 404) {
-      throw new Error("This scan record could not be found.");
+      throw new ApiError("This scan record could not be found.", {
+        kind: "not-found",
+        status: response.status,
+      });
     }
 
-    throw new Error(
-      `Could not load scan (${response.status})`
-    );
+    throw new ApiError("The scan record could not be loaded.", {
+      kind: "http",
+      status: response.status,
+    });
   }
 
-  return response.json();
+  let scan;
+
+  try {
+    scan = await response.json();
+  } catch (error) {
+    throw new ApiError("The server returned an invalid scan record.", {
+      kind: "invalid-response",
+      cause: error,
+    });
+  }
+
+  if (
+    !scan ||
+    typeof scan !== "object" ||
+    Array.isArray(scan) ||
+    !Number.isSafeInteger(scan.id) ||
+    scan.id !== Number(scanId) ||
+    typeof scan.url !== "string" ||
+    !scan.url.trim() ||
+    typeof scan.status !== "string" ||
+    !scan.status.trim() ||
+    typeof scan.created_at !== "string" ||
+    Number.isNaN(Date.parse(scan.created_at))
+  ) {
+    throw new ApiError("The server returned an incomplete scan record.", {
+      kind: "invalid-response",
+    });
+  }
+
+  return scan;
 }
 
 // Fetch statistics calculated across the entire database.
