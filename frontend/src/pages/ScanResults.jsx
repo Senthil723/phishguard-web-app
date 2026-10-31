@@ -152,6 +152,22 @@ function ScanResults() {
           </div>
         </motion.div>
 
+        {location.state?.submissionNotice && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="mb-6 flex items-start gap-3 rounded-2xl border border-cyan-200 bg-cyan-50 p-4 text-cyan-900"
+          >
+            <CheckCircle2
+              aria-hidden="true"
+              className="mt-0.5 h-5 w-5 shrink-0 text-cyan-700"
+            />
+            <p className="text-sm leading-6">
+              {location.state.submissionNotice}
+            </p>
+          </div>
+        )}
+
         {/* Loading state */}
         <AnimatePresence mode="wait">
           {isLoading && (

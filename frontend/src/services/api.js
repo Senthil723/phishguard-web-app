@@ -3,25 +3,70 @@ const API_BASE_URL = (
   import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000/api/v1"
 ).replace(/\/+$/, "");
 
+export class ApiError extends Error {
+  constructor(message, { kind, status, cause } = {}) {
+    super(message);
+    this.name = "ApiError";
+    this.kind = kind;
+    this.status = status;
+    if (cause) this.cause = cause;
+  }
+}
+
 // Save a submitted URL to the backend database.
 export async function createScan(url) {
-  const response = await fetch(`${API_BASE_URL}/scans`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ url }),
-  });
+  let response;
 
-  if (!response.ok) {
-    const errorText = await response.text();
-
-    throw new Error(
-      `Could not save scan (${response.status}): ${errorText}`
-    );
+  try {
+    response = await fetch(`${API_BASE_URL}/scans`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ url }),
+    });
+  } catch (error) {
+    throw new ApiError("Unable to connect to the PhishGuard server.", {
+      kind: "network",
+      cause: error,
+    });
   }
 
-  return response.json();
+  if (!response.ok) {
+    throw new ApiError("The server could not save this URL.", {
+      kind: "http",
+      status: response.status,
+    });
+  }
+
+  let savedScan;
+
+  try {
+    savedScan = await response.json();
+  } catch (error) {
+    throw new ApiError("The server returned an invalid response.", {
+      kind: "invalid-response",
+      cause: error,
+    });
+  }
+
+  if (
+    !savedScan ||
+    typeof savedScan !== "object" ||
+    Array.isArray(savedScan) ||
+    !Number.isSafeInteger(savedScan.id) ||
+    savedScan.id < 1 ||
+    typeof savedScan.url !== "string" ||
+    typeof savedScan.status !== "string" ||
+    typeof savedScan.created_at !== "string" ||
+    Number.isNaN(Date.parse(savedScan.created_at))
+  ) {
+    throw new ApiError("The server returned an incomplete scan record.", {
+      kind: "invalid-response",
+    });
+  }
+
+  return savedScan;
 }
 
 // Fetch the latest scan records for Recent Scans and Scan History.
