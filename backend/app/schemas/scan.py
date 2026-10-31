@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from pydantic import BaseModel, ConfigDict, HttpUrl, field_validator
 
@@ -37,3 +37,15 @@ class ScanStatsRead(BaseModel):
     failed_scans: int
     unknown_scans: int
     status_counts: dict[str, int]
+
+
+class DailySubmissionRead(BaseModel):
+    date: date
+    count: int
+
+
+class ScanAnalyticsRead(ScanStatsRead):
+    from_date: date | None
+    through_date: date | None
+    timezone: str
+    daily_submissions: list[DailySubmissionRead]

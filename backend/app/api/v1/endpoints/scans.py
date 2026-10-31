@@ -1,11 +1,19 @@
 
+from datetime import date, datetime, time, timedelta, timezone
+from http import HTTPStatus
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.models.scan import Scan
-from app.schemas.scan import ScanCreate, ScanRead, ScanStatsRead
+from app.schemas.scan import (
+    ScanAnalyticsRead,
+    ScanCreate,
+    ScanRead,
+    ScanStatsRead,
+)
 
 router = APIRouter()
 
@@ -19,6 +27,38 @@ PENDING_STATUSES = {
 }
 ANALYZED_STATUSES = {"analyzed", "analysed", "completed"}
 FAILED_STATUSES = {"failed", "error"}
+
+
+def _summarize_status_counts(rows: list[tuple[str | None, int]]) -> dict:
+    status_counts = {}
+    pending_scans = 0
+    analyzed_scans = 0
+    failed_scans = 0
+
+    for scan_status, count in rows:
+        status_name = str(scan_status or "unknown")
+        status_counts[status_name] = count
+        normalized_status = status_name.strip().lower()
+
+        if normalized_status in PENDING_STATUSES:
+            pending_scans += count
+        elif normalized_status in ANALYZED_STATUSES:
+            analyzed_scans += count
+        elif normalized_status in FAILED_STATUSES:
+            failed_scans += count
+
+    total_scans = sum(status_counts.values())
+    return {
+        "total_scans": total_scans,
+        "analyzed_scans": analyzed_scans,
+        "pending_scans": pending_scans,
+        "failed_scans": failed_scans,
+        "unknown_scans": total_scans
+        - analyzed_scans
+        - pending_scans
+        - failed_scans,
+        "status_counts": status_counts,
+    }
 
 
 @router.post("", response_model=ScanRead, status_code=status.HTTP_201_CREATED)
@@ -48,38 +88,68 @@ def list_scans(
 @router.get("/stats")
 def get_scan_stats(db: Session = Depends(get_db)) -> ScanStatsRead:
     """Return database-wide scan statistics, without analyzing URLs."""
-    total_scans = db.scalar(select(func.count()).select_from(Scan)) or 0
-
     statement = select(Scan.status, func.count(Scan.id)).group_by(Scan.status)
-    rows = db.execute(statement).all()
+    return ScanStatsRead(**_summarize_status_counts(db.execute(statement).all()))
 
-    status_counts = {}
-    pending_scans = 0
-    analyzed_scans = 0
-    failed_scans = 0
 
-    for scan_status, count in rows:
-        status_name = str(scan_status or "unknown")
-        status_counts[status_name] = count
-        normalized_status = status_name.strip().lower()
+@router.get("/analytics", response_model=ScanAnalyticsRead)
+def get_scan_analytics(
+    from_date: date | None = Query(default=None),
+    through_date: date | None = Query(default=None),
+    db: Session = Depends(get_db),
+) -> ScanAnalyticsRead:
+    """Return database-wide scan statistics and daily counts in a UTC date range."""
+    if from_date and through_date and from_date > through_date:
+        raise HTTPException(
+            status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
+            detail="from_date must be on or before through_date",
+        )
 
-        if normalized_status in PENDING_STATUSES:
-            pending_scans += count
-        elif normalized_status in ANALYZED_STATUSES:
-            analyzed_scans += count
-        elif normalized_status in FAILED_STATUSES:
-            failed_scans += count
+    filters = []
+    if from_date:
+        start = datetime.combine(from_date, time.min, tzinfo=timezone.utc)
+        filters.append(Scan.created_at >= start)
+    if through_date:
+        if through_date == date.max:
+            end_inclusive = datetime.combine(
+                through_date,
+                time.max,
+                tzinfo=timezone.utc,
+            )
+            filters.append(Scan.created_at <= end_inclusive)
+        else:
+            end_exclusive = datetime.combine(
+                through_date + timedelta(days=1),
+                time.min,
+                tzinfo=timezone.utc,
+            )
+            filters.append(Scan.created_at < end_exclusive)
 
-    return ScanStatsRead(
-        total_scans=total_scans,
-        analyzed_scans=analyzed_scans,
-        pending_scans=pending_scans,
-        failed_scans=failed_scans,
-        unknown_scans=total_scans
-        - analyzed_scans
-        - pending_scans
-        - failed_scans,
-        status_counts=status_counts,
+    status_statement = (
+        select(Scan.status, func.count(Scan.id))
+        .where(*filters)
+        .group_by(Scan.status)
+    )
+    summary = _summarize_status_counts(db.execute(status_statement).all())
+
+    day_expression = func.date(Scan.created_at)
+    activity_statement = (
+        select(day_expression, func.count(Scan.id))
+        .where(*filters)
+        .group_by(day_expression)
+        .order_by(day_expression)
+    )
+    daily_submissions = [
+        {"date": day, "count": count}
+        for day, count in db.execute(activity_statement).all()
+    ]
+
+    return ScanAnalyticsRead(
+        **summary,
+        from_date=from_date,
+        through_date=through_date,
+        timezone="UTC",
+        daily_submissions=daily_submissions,
     )
 
 

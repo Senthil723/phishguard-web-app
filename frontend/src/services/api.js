@@ -166,3 +166,21 @@ export async function getScanStats() {
 
   return response.json();
 }
+
+// Fetch database-wide aggregates and daily activity for an optional UTC range.
+export async function getScanAnalytics({ fromDate, throughDate } = {}) {
+  const params = new URLSearchParams();
+  if (fromDate) params.set("from_date", fromDate);
+  if (throughDate) params.set("through_date", throughDate);
+
+  const query = params.toString();
+  const response = await fetch(
+    `${API_BASE_URL}/scans/analytics${query ? `?${query}` : ""}`
+  );
+
+  if (!response.ok) {
+    throw new Error(`Could not load scan analytics (${response.status})`);
+  }
+
+  return response.json();
+}
