@@ -1,6 +1,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { motion } from "motion/react";
+import { motion, useReducedMotion } from "motion/react";
 import {
   Activity,
   Clock3,
@@ -12,6 +12,9 @@ import {
   History,
   ArrowRight,
   Eye,
+  CheckCircle,
+  XCircle,
+  HelpCircle,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { fadeUp, staggerContainer } from "../animations";
@@ -23,6 +26,7 @@ import {
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const shouldReduceMotion = useReducedMotion();
 
   const [history, setHistory] = useState([]);
   const [stats, setStats] = useState(null);
@@ -131,6 +135,19 @@ export default function Dashboard() {
     return styles[category] || styles.unknown;
   }
 
+  function getStatusIcon(status) {
+    const category = getScanStatusCategory(status);
+
+    const icons = {
+      pending: Clock3,
+      completed: CheckCircle,
+      failed: XCircle,
+      unknown: HelpCircle,
+    };
+
+    return icons[category] || HelpCircle;
+  }
+
   // Display the latest five records.
   const recentScans = useMemo(() => {
     return [...history]
@@ -163,15 +180,15 @@ export default function Dashboard() {
 
   return (
     <motion.section
-      variants={staggerContainer}
-      initial="hidden"
-      animate="show"
+      variants={shouldReduceMotion ? undefined : staggerContainer}
+      initial={shouldReduceMotion ? false : "hidden"}
+      animate={shouldReduceMotion ? undefined : "show"}
       className="mx-auto w-full max-w-7xl"
       aria-labelledby="dashboard-title"
     >
       {/* Dashboard heading and refresh action */}
       <motion.div
-        variants={fadeUp}
+        variants={shouldReduceMotion ? undefined : fadeUp}
         className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center"
       >
         <div>
@@ -191,7 +208,7 @@ export default function Dashboard() {
           type="button"
           onClick={loadDashboard}
           disabled={loading}
-          className="inline-flex items-center justify-center gap-2 self-start rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 sm:self-auto"
+          className="inline-flex items-center justify-center gap-2 self-start rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:self-auto"
         >
           <RefreshCw
             size={16}
@@ -204,7 +221,7 @@ export default function Dashboard() {
       {/* Dashboard error message */}
       {error && (
         <motion.div
-          variants={fadeUp}
+          variants={shouldReduceMotion ? undefined : fadeUp}
           role="alert"
           className="mb-5 flex flex-col gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 sm:flex-row sm:items-center"
         >
@@ -216,7 +233,7 @@ export default function Dashboard() {
           <button
             type="button"
             onClick={loadDashboard}
-            className="shrink-0 self-start font-semibold underline sm:ml-auto"
+            className="shrink-0 self-start rounded-sm font-semibold underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 sm:ml-auto"
           >
             Try again
           </button>
@@ -225,7 +242,7 @@ export default function Dashboard() {
 
       {/* Summary cards */}
       <motion.div
-        variants={fadeUp}
+        variants={shouldReduceMotion ? undefined : fadeUp}
         className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6"
         aria-label="PhishGuard summary"
         aria-busy={loading}
@@ -244,7 +261,7 @@ export default function Dashboard() {
             return (
               <article
                 key={label}
-                className="min-w-0 rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm shadow-slate-900/[0.025] transition duration-200 hover:-translate-y-0.5 hover:shadow-md"
+                className="min-w-0 rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm shadow-slate-900/[0.025] transition duration-200 hover:-translate-y-0.5 hover:shadow-md motion-reduce:transition-none motion-reduce:hover:translate-y-0"
               >
                 <div className="flex items-start justify-between gap-3">
                   <p className="max-w-[calc(100%-3rem)] text-sm font-medium leading-5 text-slate-500">
@@ -277,7 +294,7 @@ export default function Dashboard() {
 
       {/* Recent Scans */}
       <motion.section
-        variants={fadeUp}
+        variants={shouldReduceMotion ? undefined : fadeUp}
         className="mt-8 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-900/[0.025]"
         aria-labelledby="recent-scans-title"
       >
@@ -297,7 +314,7 @@ export default function Dashboard() {
 
           <Link
             to="/history"
-            className="inline-flex items-center gap-2 self-start rounded-lg px-3 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-50"
+            className="inline-flex items-center gap-2 self-start rounded-lg px-3 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
           >
             View all history <ArrowRight size={16} />
           </Link>
@@ -314,23 +331,23 @@ export default function Dashboard() {
             {[1, 2, 3].map((item) => (
               <motion.div
                 key={item}
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
+                initial={shouldReduceMotion ? false : { opacity: 0, y: 6 }}
+                animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
                 transition={{
-                  duration: 0.25,
-                  delay: (item - 1) * 0.08,
+                  duration: shouldReduceMotion ? 0 : 0.25,
+                  delay: shouldReduceMotion ? 0 : (item - 1) * 0.08,
                 }}
                 className="flex items-center gap-3 px-5 py-4"
               >
-                <div className="h-10 w-10 shrink-0 animate-pulse rounded-xl bg-blue-100" />
+                <div className="h-10 w-10 shrink-0 animate-pulse rounded-xl bg-blue-100 motion-reduce:animate-none" />
 
                 <div className="min-w-0 flex-1 space-y-2">
-                  <div className="h-3 w-3/4 max-w-64 animate-pulse rounded bg-slate-200" />
-                  <div className="h-3 w-32 max-w-full animate-pulse rounded bg-slate-100" />
+                  <div className="h-3 w-3/4 max-w-64 animate-pulse rounded bg-slate-200 motion-reduce:animate-none" />
+                  <div className="h-3 w-32 max-w-full animate-pulse rounded bg-slate-100 motion-reduce:animate-none" />
                 </div>
 
-                <div className="hidden h-7 w-28 animate-pulse rounded-full bg-amber-100 sm:block" />
-                <div className="hidden h-9 w-28 animate-pulse rounded-lg bg-slate-100 sm:block" />
+                <div className="hidden h-7 w-28 animate-pulse rounded-full bg-amber-100 motion-reduce:animate-none sm:block" />
+                <div className="hidden h-9 w-28 animate-pulse rounded-lg bg-slate-100 motion-reduce:animate-none sm:block" />
               </motion.div>
             ))}
 
@@ -346,58 +363,70 @@ export default function Dashboard() {
           </div>
         ) : recentScans.length > 0 ? (
           /* Scan records */
-          <div className="divide-y divide-slate-100">
-            {recentScans.map((scan) => (
-              <div
-                key={scan.id}
-                className="flex flex-col gap-3 px-5 py-4 transition hover:bg-blue-50/30 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div className="flex min-w-0 items-center gap-3">
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
-                    <Globe size={18} />
-                  </span>
+          <motion.div
+            variants={shouldReduceMotion ? undefined : staggerContainer}
+            initial={shouldReduceMotion ? false : "hidden"}
+            animate={shouldReduceMotion ? undefined : "show"}
+            className="divide-y divide-slate-100"
+          >
+            {recentScans.map((scan) => {
+              const StatusIcon = getStatusIcon(scan.status);
 
-                  <div className="min-w-0">
-                    <p
-                      className="truncate text-sm font-semibold text-slate-800"
-                      title={scan.url}
-                    >
-                      {scan.url}
-                    </p>
+              return (
+                <motion.div
+                  key={scan.id}
+                  variants={shouldReduceMotion ? undefined : fadeUp}
+                  className="flex flex-col gap-3 px-5 py-4 transition-colors hover:bg-blue-50/30 motion-reduce:transition-none sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
+                      <Globe size={18} />
+                    </span>
 
-                    <p className="mt-1 text-xs text-slate-500">
-                      {formatDate(scan.created_at)}
-                    </p>
+                    <div className="min-w-0">
+                      <p
+                        className="truncate text-sm font-semibold text-slate-800"
+                        title={scan.url}
+                      >
+                        {scan.url}
+                      </p>
+
+                      <p className="mt-1 text-xs text-slate-500">
+                        {formatDate(scan.created_at)}
+                      </p>
+                    </div>
                   </div>
-                </div>
 
-                {/* Status and View Details action */}
-                <div className="flex flex-wrap items-center gap-3 sm:justify-end">
-                  <span
-                    className={`inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${getStatusStyle(
-                      scan.status
-                    )}`}
-                  >
-                    <Clock3 size={13} />
-                    {getScanStatusLabel(scan.status)}
-                  </span>
+                  {/* Status and View Details action */}
+                  <div className="flex flex-wrap items-center gap-3 sm:justify-end">
+                    <span
+                      className={`inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${getStatusStyle(
+                        scan.status
+                      )}`}
+                    >
+                      <StatusIcon size={13} aria-hidden="true" />
+                      {getScanStatusLabel(scan.status)}
+                    </span>
 
-                  <motion.button
-                    type="button"
-                    whileHover={{ y: -1 }}
-                    whileTap={{ scale: 0.97 }}
-                    onClick={() => handleViewDetails(scan)}
-                    aria-label={`View details for ${scan.url}`}
-                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm font-semibold text-blue-700 transition-colors hover:border-blue-300 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
-                  >
-                    <Eye size={16} />
-                    View Details
-                    <ArrowRight size={15} />
-                  </motion.button>
-                </div>
-              </div>
-            ))}
-          </div>
+                    <motion.button
+                      type="button"
+                      whileHover={shouldReduceMotion ? undefined : { y: -1 }}
+                      whileTap={
+                        shouldReduceMotion ? undefined : { scale: 0.97 }
+                      }
+                      onClick={() => handleViewDetails(scan)}
+                      aria-label={`View details for ${scan.url}`}
+                      className="inline-flex items-center justify-center gap-2 rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm font-semibold text-blue-700 transition-colors hover:border-blue-300 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 motion-reduce:transition-none"
+                    >
+                      <Eye size={16} />
+                      View Details
+                      <ArrowRight size={15} />
+                    </motion.button>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </motion.div>
         ) : (
           /* Empty state */
           <div className="px-5 py-12 text-center">
@@ -410,6 +439,13 @@ export default function Dashboard() {
             <p className="mt-1 text-sm text-slate-500">
               Submit a URL through URL Scanner to see it here.
             </p>
+
+            <Link
+              to="/scanner"
+              className="mt-4 inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+            >
+              Open URL Scanner <ArrowRight size={16} />
+            </Link>
           </div>
         )}
 
