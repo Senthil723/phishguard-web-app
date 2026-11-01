@@ -22,6 +22,7 @@ import {
   getScanStatusCategory,
   getScanStatusLabel,
 } from "../utils/scanStatus";
+import { loadPreferences } from "../utils/preferences";
 
 function formatDateTime(value) {
   if (!value) return "Not recorded";
@@ -121,6 +122,9 @@ function ScanResults() {
   const location = useLocation();
   const { scanId: routeScanId } = useParams();
   const shouldReduceMotion = useReducedMotion();
+  const [showSubmissionConfirmation] = useState(
+    () => loadPreferences().preferences.showSubmissionConfirmation
+  );
 
   // Keep the state fallback for existing links while supporting refreshable URLs.
   const scanId = routeScanId || location.state?.scanId;
@@ -253,7 +257,7 @@ function ScanResults() {
           </div>
         </motion.section>
 
-        {location.state?.submissionNotice && (
+        {location.state?.submissionNotice && showSubmissionConfirmation && (
           <div
             role="status"
             aria-live="polite"

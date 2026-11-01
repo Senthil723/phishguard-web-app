@@ -12,8 +12,9 @@ import {
   X,
 } from "lucide-react";
 import { ApiError, createScan } from "../services/api";
+import { loadPreferences } from "../utils/preferences";
 
-function validateUrl(value) {
+function validateUrl(value, defaultProtocol) {
   const trimmedUrl = value.trim();
 
   if (!trimmedUrl) {
@@ -37,7 +38,7 @@ function validateUrl(value) {
 
   const normalizedUrl = hasHttpScheme
     ? trimmedUrl
-    : `https://${trimmedUrl}`;
+    : `${defaultProtocol}://${trimmedUrl}`;
 
   try {
     const parsedUrl = new URL(normalizedUrl);
@@ -89,6 +90,9 @@ function getSubmissionErrorMessage(error) {
 export default function URLScanner() {
   const navigate = useNavigate();
   const shouldReduceMotion = useReducedMotion();
+  const [defaultProtocol] = useState(
+    () => loadPreferences().preferences.defaultProtocol
+  );
 
   const [url, setUrl] = useState("");
   const [message, setMessage] = useState("");
@@ -101,7 +105,7 @@ export default function URLScanner() {
 
     if (isSubmittingRef.current) return;
 
-    const validation = validateUrl(url);
+    const validation = validateUrl(url, defaultProtocol);
 
     if (validation.error) {
       setMessage(validation.error);
@@ -225,8 +229,8 @@ export default function URLScanner() {
             </label>
 
             <p id="website-url-hint" className="mb-3 text-xs text-slate-500">
-              Enter an HTTP or HTTPS URL. If you omit the protocol, HTTPS will
-              be used.
+              Enter an HTTP or HTTPS URL. If you omit the protocol,{" "}
+              {defaultProtocol.toUpperCase()} will be used.
             </p>
 
             <div className="flex flex-col gap-3 sm:flex-row">
