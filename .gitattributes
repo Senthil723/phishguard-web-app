@@ -1,0 +1,4 @@
+backend/data/processed/**/*.csv filter=lfs diff=lfs merge=lfs -text
+backend/data/raw/**/*.csv filter=lfs diff=lfs merge=lfs -text
+backend/models/*.csv filter=lfs diff=lfs merge=lfs -text
+backend/models/url_random_forest*.joblib filter=lfs diff=lfs merge=lfs -text

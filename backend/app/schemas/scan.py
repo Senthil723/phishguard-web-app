@@ -1,3 +1,4 @@
+
 from datetime import date, datetime, timezone
 
 from pydantic import BaseModel, ConfigDict, HttpUrl, field_validator
@@ -22,6 +23,12 @@ class ScanRead(BaseModel):
     status: str
     created_at: datetime
 
+    # Machine learning prediction details
+    prediction: str | None = None
+    risk_level: str | None = None
+    model_score: float | None = None
+    model_version: str | None = None
+
     @field_validator("created_at", mode="before")
     @classmethod
     def normalize_created_at_timezone(cls, value: datetime) -> datetime:
@@ -41,11 +48,14 @@ class ScanStatsRead(BaseModel):
 
 class DailySubmissionRead(BaseModel):
     date: date
-    count: int
+    total_scans: int
 
 
-class ScanAnalyticsRead(ScanStatsRead):
-    from_date: date | None
-    through_date: date | None
-    timezone: str
+class ScanAnalyticsRead(BaseModel):
+    total_scans: int
+    analyzed_scans: int
+    pending_scans: int
+    failed_scans: int
+    unknown_scans: int
+    status_counts: dict[str, int]
     daily_submissions: list[DailySubmissionRead]

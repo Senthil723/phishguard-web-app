@@ -1,0 +1,59 @@
+{
+    "model": "RandomForestClassifier",
+    "dataset": "Combined PhiUSIIL + URL-Phish",
+    "features": [
+        "url_length",
+        "hostname_length",
+        "path_length",
+        "query_length",
+        "fragment_length",
+        "dot_count",
+        "subdomain_count",
+        "digit_count",
+        "letter_count",
+        "special_character_count",
+        "hyphen_count",
+        "underscore_count",
+        "at_count",
+        "question_mark_count",
+        "equal_count",
+        "ampersand_count",
+        "percent_count",
+        "slash_count",
+        "https",
+        "has_ip_address",
+        "hostname_entropy",
+        "path_depth",
+        "tld_length",
+        "has_punycode",
+        "suspicious_keyword_count",
+        "encoded_character_count",
+        "query_parameter_count",
+        "has_fragment",
+        "has_port"
+    ],
+    "feature_count": 29,
+    "training_records": 280789,
+    "testing_records": 69204,
+    "hostname_leakage": false,
+    "accuracy": 0.9469394832668632,
+    "precision": 0.9112826294337004,
+    "recall": 0.9281865559579543,
+    "f1_score": 0.9196569228076317,
+    "roc_auc": 0.9806974975899705,
+    "average_precision": 0.9660666121508313,
+    "confusion_matrix": [
+        [
+            44516,
+            2046
+        ],
+        [
+            1626,
+            21016
+        ]
+    ],
+    "class_mapping": {
+        "0": "legitimate",
+        "1": "phishing"
+    }
+}

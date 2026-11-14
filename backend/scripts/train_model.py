@@ -16,14 +16,19 @@ from sklearn.metrics import (
     recall_score,
     f1_score,
     roc_auc_score,
+    make_scorer,
 )
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import (
+    train_test_split,
+    StratifiedKFold,
+    cross_validate,
+)
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 
 # --------------------------------------------------
-# 1. Project paths and settings
+# 1. PROJECT PATHS AND SETTINGS
 # --------------------------------------------------
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -36,16 +41,22 @@ DATASET_PATH = (
 )
 
 MODEL_DIR = PROJECT_ROOT / "backend" / "models"
+
 METRICS_PATH = MODEL_DIR / "baseline_metrics.json"
+
+CV_METRICS_PATH = MODEL_DIR / "cross_validation_metrics.json"
 
 LABEL_COLUMN = "URL_Type_obf_Type"
 
 RANDOM_STATE = 42
+
 TEST_SIZE = 0.20
+
+N_SPLITS = 5
 
 
 # --------------------------------------------------
-# 2. Load cleaned dataset
+# 2. LOAD CLEANED DATASET
 # --------------------------------------------------
 
 def load_dataset():
@@ -64,9 +75,11 @@ def load_dataset():
         raise ValueError("Target label column is missing.")
 
     X = df.drop(columns=[LABEL_COLUMN])
+
     y = df[LABEL_COLUMN]
 
     print("Dataset records:", len(df))
+
     print("Number of features:", X.shape[1])
 
     print("\nClass distribution:")
@@ -76,7 +89,7 @@ def load_dataset():
 
 
 # --------------------------------------------------
-# 3. Split training and testing data
+# 3. SPLIT TRAINING AND TESTING DATA
 # --------------------------------------------------
 
 def split_dataset(X, y):
@@ -92,6 +105,7 @@ def split_dataset(X, y):
     )
 
     print("Training records:", len(X_train))
+
     print("Testing records:", len(X_test))
 
     print("\nTraining class distribution:")
@@ -104,7 +118,7 @@ def split_dataset(X, y):
 
 
 # --------------------------------------------------
-# 4. Define machine learning models
+# 4. DEFINE MACHINE LEARNING MODELS
 # --------------------------------------------------
 
 def create_models():
@@ -112,28 +126,43 @@ def create_models():
     models = {
 
         "Logistic Regression": Pipeline([
-            ("imputer", SimpleImputer(
-                strategy="median",
-                add_indicator=True,
-            )),
-            ("scaler", StandardScaler()),
-            ("classifier", LogisticRegression(
-                max_iter=2000,
-                random_state=RANDOM_STATE,
-            )),
+            (
+                "imputer",
+                SimpleImputer(
+                    strategy="median",
+                    add_indicator=True,
+                ),
+            ),
+            (
+                "scaler",
+                StandardScaler(),
+            ),
+            (
+                "classifier",
+                LogisticRegression(
+                    max_iter=2000,
+                    random_state=RANDOM_STATE,
+                ),
+            ),
         ]),
 
         "Random Forest": Pipeline([
-            ("imputer", SimpleImputer(
-                strategy="median",
-                add_indicator=True,
-            )),
-            ("classifier", RandomForestClassifier(
-                n_estimators=300,
-                random_state=RANDOM_STATE,
-                class_weight="balanced",
-                n_jobs=-1,
-            )),
+            (
+                "imputer",
+                SimpleImputer(
+                    strategy="median",
+                    add_indicator=True,
+                ),
+            ),
+            (
+                "classifier",
+                RandomForestClassifier(
+                    n_estimators=300,
+                    random_state=RANDOM_STATE,
+                    class_weight="balanced",
+                    n_jobs=-1,
+                ),
+            ),
         ]),
     }
 
@@ -141,28 +170,117 @@ def create_models():
 
 
 # --------------------------------------------------
-# 5. Train and evaluate each model
+# 5. RUN 5-FOLD STRATIFIED CROSS-VALIDATION
 # --------------------------------------------------
 
-def evaluate_model(name, model, X_train, X_test, y_train, y_test):
+def run_cross_validation(models, X_train, y_train):
+
+    print("\n========== 5-FOLD CROSS-VALIDATION ==========\n")
+
+    cv = StratifiedKFold(
+        n_splits=N_SPLITS,
+        shuffle=True,
+        random_state=RANDOM_STATE,
+    )
+
+    scoring = {
+        "accuracy": "accuracy",
+
+        "precision": make_scorer(
+            precision_score,
+            pos_label="phishing",
+            zero_division=0,
+        ),
+
+        "recall": make_scorer(
+            recall_score,
+            pos_label="phishing",
+            zero_division=0,
+        ),
+
+        "f1": make_scorer(
+            f1_score,
+            pos_label="phishing",
+            zero_division=0,
+        ),
+
+        "roc_auc": "roc_auc",
+    }
+
+    results = {}
+
+    for name, model in models.items():
+
+        print(f"\nRunning cross-validation: {name}")
+
+        scores = cross_validate(
+            model,
+            X_train,
+            y_train,
+            cv=cv,
+            scoring=scoring,
+            n_jobs=1,
+            return_train_score=False,
+        )
+
+        results[name] = {}
+
+        for metric in scoring:
+
+            values = scores[f"test_{metric}"]
+
+            mean_score = values.mean()
+
+            std_score = values.std()
+
+            results[name][metric] = {
+                "mean": float(mean_score),
+
+                "std": float(std_score),
+
+                "fold_scores": [
+                    float(value) for value in values
+                ],
+            }
+
+            print(
+                f"{metric}: "
+                f"{mean_score:.4f} "
+                f"(+/- {std_score:.4f})"
+            )
+
+    return results
+
+
+# --------------------------------------------------
+# 6. TRAIN AND EVALUATE INDIVIDUAL MODELS
+# --------------------------------------------------
+
+def evaluate_model(
+    name,
+    model,
+    X_train,
+    X_test,
+    y_train,
+    y_test,
+):
 
     print(f"\n========== {name.upper()} ==========\n")
 
-    # Train using training data only
     model.fit(X_train, y_train)
 
-    # Predict test records
     predictions = model.predict(X_test)
 
-    # Identify phishing probability
     phishing_index = list(model.classes_).index("phishing")
 
     probabilities = model.predict_proba(X_test)[
         :, phishing_index
     ]
 
-    # Calculate evaluation metrics
-    accuracy = accuracy_score(y_test, predictions)
+    accuracy = accuracy_score(
+        y_test,
+        predictions,
+    )
 
     precision = precision_score(
         y_test,
@@ -197,16 +315,23 @@ def evaluate_model(name, model, X_train, X_test, y_train, y_test):
     )
 
     print(f"Accuracy:  {accuracy:.4f}")
+
     print(f"Precision: {precision:.4f}")
+
     print(f"Recall:    {recall:.4f}")
+
     print(f"F1-score:  {f1:.4f}")
+
     print(f"ROC-AUC:   {roc_auc:.4f}")
 
     print("\nConfusion Matrix")
+
     print("Label order: benign, phishing")
+
     print(matrix)
 
     print("\nClassification Report")
+
     print(
         classification_report(
             y_test,
@@ -228,25 +353,60 @@ def evaluate_model(name, model, X_train, X_test, y_train, y_test):
 
 
 # --------------------------------------------------
-# 6. Train all models and save results
+# 7. MAIN EXECUTION
 # --------------------------------------------------
 
 def main():
 
+    # Load data
     X, y = load_dataset()
 
-    X_train, X_test, y_train, y_test = split_dataset(X, y)
+    # Split into training and testing data
+    X_train, X_test, y_train, y_test = split_dataset(
+        X,
+        y,
+    )
 
+    # Create model pipelines
     models = create_models()
 
+    # Create model output directory
     MODEL_DIR.mkdir(
         parents=True,
         exist_ok=True,
     )
 
-    all_metrics = {}
+    # --------------------------------------------------
+    # Run cross-validation on training data only
+    # --------------------------------------------------
 
-    trained_models = {}
+    cv_results = run_cross_validation(
+        models,
+        X_train,
+        y_train,
+    )
+
+    with open(
+        CV_METRICS_PATH,
+        "w",
+        encoding="utf-8",
+    ) as file:
+
+        json.dump(
+            cv_results,
+            file,
+            indent=4,
+        )
+
+    print("\nCross-validation metrics saved to:")
+
+    print(CV_METRICS_PATH)
+
+    # --------------------------------------------------
+    # Train and evaluate using the untouched test set
+    # --------------------------------------------------
+
+    all_metrics = {}
 
     for name, model in models.items():
 
@@ -260,7 +420,6 @@ def main():
         )
 
         all_metrics[name] = metrics
-        trained_models[name] = trained_model
 
         safe_name = name.lower().replace(" ", "_")
 
@@ -273,8 +432,15 @@ def main():
 
         print(f"\nSaved model: {model_path}")
 
-    # Save evaluation metrics
-    with open(METRICS_PATH, "w", encoding="utf-8") as file:
+    # --------------------------------------------------
+    # Save final test-set metrics
+    # --------------------------------------------------
+
+    with open(
+        METRICS_PATH,
+        "w",
+        encoding="utf-8",
+    ) as file:
 
         json.dump(
             all_metrics,
@@ -288,11 +454,13 @@ def main():
 
     print(results.round(4))
 
-    print("\nMetrics saved to:")
+    print("\nTest metrics saved to:")
+
     print(METRICS_PATH)
 
-    print("\nTraining and evaluation completed.")
+    print("\n========== TRAINING COMPLETED ==========")
 
 
 if __name__ == "__main__":
+
     main()
