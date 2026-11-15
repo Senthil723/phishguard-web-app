@@ -1,3 +1,4 @@
+
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
@@ -12,8 +13,8 @@ import {
   LoaderCircle,
   RefreshCw,
   ShieldAlert,
+  ShieldCheck,
   ShieldQuestion,
-  XCircle,
 } from "lucide-react";
 
 import { fadeUp, pressFeedback, staggerContainer } from "../animations";
@@ -44,24 +45,88 @@ function getStatusAppearance(status) {
 
   const appearances = {
     pending: {
-      icon: Clock3,
       className: "border-amber-200 bg-amber-50 text-amber-800",
     },
     completed: {
-      icon: CheckCircle2,
       className: "border-cyan-200 bg-cyan-50 text-cyan-800",
     },
     failed: {
-      icon: XCircle,
       className: "border-red-200 bg-red-50 text-red-800",
     },
     unknown: {
-      icon: HelpCircle,
       className: "border-slate-200 bg-slate-100 text-slate-700",
     },
   };
 
   return appearances[category] || appearances.unknown;
+}
+
+function getPredictionAppearance(prediction) {
+  const appearances = {
+    phishing: {
+      label: "Phishing detected",
+      description: "The model classified this URL as phishing.",
+      icon: ShieldAlert,
+      className: "border-red-200 bg-red-50 text-red-800",
+      iconClass: "text-red-700",
+    },
+    needs_review: {
+      label: "Needs review",
+      description: "The model result requires further investigation.",
+      icon: AlertTriangle,
+      className: "border-amber-200 bg-amber-50 text-amber-800",
+      iconClass: "text-amber-700",
+    },
+    lower_model_risk: {
+      label: "Lower model risk",
+      description: "The model detected fewer phishing indicators.",
+      icon: ShieldCheck,
+      className: "border-emerald-200 bg-emerald-50 text-emerald-800",
+      iconClass: "text-emerald-700",
+    },
+  };
+
+  return (
+    appearances[prediction] || {
+      label: "Not available",
+      description: "No ML prediction is available for this record.",
+      icon: HelpCircle,
+      className: "border-slate-200 bg-slate-50 text-slate-700",
+      iconClass: "text-slate-500",
+    }
+  );
+}
+
+function getRiskAppearance(riskLevel) {
+  const appearances = {
+    high: {
+      label: "High Risk",
+      description: "The model assigned a high-risk category.",
+      className: "border-red-200 bg-red-50 text-red-800",
+      iconClass: "text-red-700",
+    },
+    medium: {
+      label: "Medium Risk",
+      description: "The model assigned a medium-risk category.",
+      className: "border-amber-200 bg-amber-50 text-amber-800",
+      iconClass: "text-amber-700",
+    },
+    low: {
+      label: "Low Risk",
+      description: "The model assigned a lower-risk category.",
+      className: "border-emerald-200 bg-emerald-50 text-emerald-800",
+      iconClass: "text-emerald-700",
+    },
+  };
+
+  return (
+    appearances[riskLevel] || {
+      label: "Not available",
+      description: "No risk assessment is available for this record.",
+      className: "border-slate-200 bg-slate-50 text-slate-700",
+      iconClass: "text-slate-500",
+    }
+  );
 }
 
 function getRetrievalError(error) {
@@ -77,7 +142,8 @@ function getRetrievalError(error) {
   if (error instanceof ApiError && error.kind === "invalid-id") {
     return {
       title: "Invalid scan ID",
-      message: "The requested scan ID is not valid. Choose a saved record from Scan History.",
+      message:
+        "The requested scan ID is not valid. Choose a saved record from Scan History.",
       canRetry: false,
     };
   }
@@ -122,11 +188,12 @@ function ScanResults() {
   const location = useLocation();
   const { scanId: routeScanId } = useParams();
   const shouldReduceMotion = useReducedMotion();
+
   const [showSubmissionConfirmation] = useState(
     () => loadPreferences().preferences.showSubmissionConfirmation
   );
 
-  // Keep the state fallback for existing links while supporting refreshable URLs.
+  // Support direct URLs, refreshes, and existing navigation state.
   const scanId = routeScanId || location.state?.scanId;
   const passedUrl = location.state?.url || "";
 
@@ -155,6 +222,7 @@ function ScanResults() {
         const savedScan = await getScanById(scanId, {
           signal: controller.signal,
         });
+
         setScan(savedScan);
       } catch (requestError) {
         if (!controller.signal.aborted) {
@@ -179,11 +247,26 @@ function ScanResults() {
 
   const scannedUrl = scan?.url || passedUrl;
   const hasScannedUrl = Boolean(scannedUrl);
-  const status = scan?.status;
-  const statusCategory = getScanStatusCategory(status);
-  const statusLabel = getScanStatusLabel(status);
-  const statusAppearance = getStatusAppearance(status);
-  const StatusIcon = statusAppearance.icon;
+
+  const predictionAppearance = getPredictionAppearance(scan?.prediction);
+  const PredictionIcon = predictionAppearance.icon;
+
+  const riskAppearance = getRiskAppearance(scan?.risk_level);
+
+  // Older records have no prediction fields. Do not display them as low risk.
+  const hasModelResult =
+    typeof scan?.model_score === "number" &&
+    Number.isFinite(scan.model_score) &&
+    Boolean(scan?.prediction) &&
+    Boolean(scan?.risk_level);
+
+  const modelScorePercentage = hasModelResult
+    ? Math.min(Math.max(scan.model_score * 100, 0), 100)
+    : null;
+
+  const statusCategory = getScanStatusCategory(scan?.status);
+  const statusLabel = getScanStatusLabel(scan?.status);
+  const statusAppearance = getStatusAppearance(scan?.status);
 
   function handleRetry() {
     if (!scanId || isLoading || retryInFlightRef.current) return;
@@ -203,6 +286,7 @@ function ScanResults() {
         animate={shouldReduceMotion ? undefined : "show"}
         aria-labelledby="scan-results-title"
       >
+        {/* Page heading */}
         <motion.header
           variants={shouldReduceMotion ? undefined : fadeUp}
           className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"
@@ -210,7 +294,7 @@ function ScanResults() {
           <div>
             <div className="mb-3 inline-flex items-center gap-2 text-sm font-semibold text-blue-700">
               <FileSearch aria-hidden="true" size={17} />
-              Saved investigation record
+              ML-powered URL assessment
             </div>
 
             <h1
@@ -221,8 +305,8 @@ function ScanResults() {
             </h1>
 
             <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600 sm:text-base">
-              Review the submitted URL and the current status returned by the
-              PhishGuard backend.
+              Review the experimental machine-learning assessment and saved
+              details of your submitted URL.
             </p>
           </div>
 
@@ -235,28 +319,32 @@ function ScanResults() {
           </Link>
         </motion.header>
 
+        {/* ML model information */}
         <motion.section
           variants={shouldReduceMotion ? undefined : fadeUp}
-          className="mb-6 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50/70 p-4"
-          aria-label="Detection engine status"
+          className="mb-6 flex items-start gap-3 rounded-2xl border border-blue-200 bg-blue-50/70 p-4"
+          aria-label="Machine learning model information"
         >
-          <Info
+          <ShieldCheck
             aria-hidden="true"
-            className="mt-0.5 shrink-0 text-amber-700"
-            size={21}
+            className="mt-0.5 shrink-0 text-blue-700"
+            size={22}
           />
+
           <div>
-            <h2 className="font-semibold text-amber-900">
-              Detection engine not connected
+            <h2 className="font-semibold text-blue-900">
+              Experimental ML model connected
             </h2>
             <p className="mt-1 text-sm leading-6 text-slate-700">
-              This prototype saves and retrieves URL submissions. It does not
-              currently perform phishing classification, threat intelligence
-              checks, or produce a safety verdict.
+              PhishGuard uses an experimental Random Forest model to assess
+              extracted URL features. The model does not visit the website or
+              inspect its webpage content. Its predictions are not guaranteed
+              security verdicts.
             </p>
           </div>
         </motion.section>
 
+        {/* Submission confirmation */}
         {location.state?.submissionNotice && showSubmissionConfirmation && (
           <div
             role="status"
@@ -267,12 +355,14 @@ function ScanResults() {
               aria-hidden="true"
               className="mt-0.5 h-5 w-5 shrink-0 text-cyan-700"
             />
+
             <p className="text-sm leading-6">
               {location.state.submissionNotice}
             </p>
           </div>
         )}
 
+        {/* Loading state */}
         <AnimatePresence mode="wait" initial={false}>
           {isLoading && (
             <motion.div
@@ -291,16 +381,18 @@ function ScanResults() {
                 className="h-5 w-5 animate-spin motion-reduce:animate-none"
                 size={20}
               />
+
               <div>
-                <p className="font-semibold">Loading saved record</p>
+                <p className="font-semibold">Loading scan results</p>
                 <p className="mt-1 text-sm text-blue-700">
-                  Retrieving the submitted details from the backend...
+                  Retrieving the saved URL and ML assessment from the backend...
                 </p>
               </div>
             </motion.div>
           )}
         </AnimatePresence>
 
+        {/* Error state */}
         <AnimatePresence initial={false}>
           {!isLoading && error && (
             <motion.section
@@ -321,9 +413,13 @@ function ScanResults() {
                 />
 
                 <div className="min-w-0 flex-1">
-                  <h2 id="scan-error-title" className="font-semibold text-red-900">
+                  <h2
+                    id="scan-error-title"
+                    className="font-semibold text-red-900"
+                  >
                     {error.title}
                   </h2>
+
                   <p className="mt-2 text-sm leading-6 text-red-800">
                     {error.message}
                   </p>
@@ -340,6 +436,7 @@ function ScanResults() {
                         Try again
                       </button>
                     )}
+
                     <Link
                       to="/history"
                       className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-red-900 transition hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
@@ -353,6 +450,7 @@ function ScanResults() {
           )}
         </AnimatePresence>
 
+        {/* No scan selected */}
         {!isLoading && !error && !hasScannedUrl && (
           <motion.section
             variants={shouldReduceMotion ? undefined : fadeUp}
@@ -363,6 +461,7 @@ function ScanResults() {
             </div>
 
             <h2 className="mt-4 text-lg font-semibold">No scan selected</h2>
+
             <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-600">
               Open a saved record from Scan History, or submit a URL through
               the URL Scanner.
@@ -380,8 +479,10 @@ function ScanResults() {
           </motion.section>
         )}
 
+        {/* Scan result content */}
         {!isLoading && !error && hasScannedUrl && (
           <>
+            {/* Submitted URL and record details */}
             <motion.section
               variants={shouldReduceMotion ? undefined : fadeUp}
               className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7"
@@ -391,12 +492,13 @@ function ScanResults() {
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
                   <FileSearch aria-hidden="true" size={22} />
                 </div>
+
                 <div>
                   <h2 id="submitted-url-title" className="font-semibold">
                     Submitted URL
                   </h2>
                   <p className="mt-1 text-sm text-slate-600">
-                    Saved submission details
+                    Saved investigation details
                   </p>
                 </div>
               </div>
@@ -405,7 +507,7 @@ function ScanResults() {
                 {scannedUrl}
               </p>
 
-              <dl className="mt-5 grid gap-4 sm:grid-cols-2">
+              <dl className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <div className="rounded-xl bg-slate-50 p-4">
                   <dt className="text-xs font-medium uppercase tracking-wide text-slate-600">
                     Database record ID
@@ -423,95 +525,148 @@ function ScanResults() {
                     {formatDateTime(scan?.created_at)}
                   </dd>
                 </div>
+
+                <div
+                  className={`rounded-xl border p-4 ${statusAppearance.className}`}
+                >
+                  <dt className="text-xs font-medium uppercase tracking-wide">
+                    Record status
+                  </dt>
+                  <dd className="mt-2 font-semibold">
+                    {statusCategory === "unknown"
+                      ? `Unknown: ${statusLabel}`
+                      : statusLabel}
+                  </dd>
+                </div>
               </dl>
             </motion.section>
 
+            {/* Three ML result cards */}
             <motion.section
               variants={shouldReduceMotion ? undefined : staggerContainer}
               className="mb-6 grid gap-4 md:grid-cols-3"
-              aria-label="Record status summary"
+              aria-label="Machine learning assessment summary"
             >
+              {/* Prediction card */}
               <motion.div
                 variants={shouldReduceMotion ? undefined : fadeUp}
-                className={`rounded-2xl border p-5 ${statusAppearance.className}`}
+                className={`rounded-2xl border p-5 ${predictionAppearance.className}`}
               >
                 <div className="mb-4 flex items-center justify-between gap-3">
-                  <h2 className="text-sm font-semibold">Saved record status</h2>
-                  <StatusIcon aria-hidden="true" size={22} />
+                  <h2 className="text-sm font-semibold">ML Prediction</h2>
+                  <PredictionIcon
+                    aria-hidden="true"
+                    className={predictionAppearance.iconClass}
+                    size={24}
+                  />
                 </div>
+
                 <p className="break-words text-xl font-bold">
-                  {statusCategory === "unknown"
-                    ? `Unknown status: ${statusLabel}`
-                    : statusLabel}
+                  {hasModelResult
+                    ? predictionAppearance.label
+                    : "Not available"}
                 </p>
+
                 <p className="mt-2 text-sm leading-5 opacity-90">
-                  Status reported by the backend. It is not a phishing verdict.
+                  {hasModelResult
+                    ? predictionAppearance.description
+                    : "This record has no stored ML prediction."}
                 </p>
               </motion.div>
 
+              {/* Risk level card */}
               <motion.div
                 variants={shouldReduceMotion ? undefined : fadeUp}
-                className="rounded-2xl border border-amber-200 bg-white p-5"
+                className={`rounded-2xl border p-5 ${riskAppearance.className}`}
               >
                 <div className="mb-4 flex items-center justify-between gap-3">
-                  <h2 className="text-sm font-semibold text-slate-700">
-                    Detection engine
-                  </h2>
+                  <h2 className="text-sm font-semibold">Risk Level</h2>
                   <ShieldAlert
                     aria-hidden="true"
-                    className="text-amber-700"
-                    size={22}
+                    className={riskAppearance.iconClass}
+                    size={24}
                   />
                 </div>
-                <p className="text-xl font-bold text-amber-900">
-                  Not connected
+
+                <p className="break-words text-xl font-bold">
+                  {hasModelResult ? riskAppearance.label : "Not available"}
                 </p>
-                <p className="mt-2 text-sm leading-5 text-slate-600">
-                  No model or security analysis service is connected.
+
+                <p className="mt-2 text-sm leading-5 opacity-90">
+                  {hasModelResult
+                    ? riskAppearance.description
+                    : "A risk category has not been stored for this record."}
                 </p>
               </motion.div>
 
+              {/* Model score card */}
               <motion.div
                 variants={shouldReduceMotion ? undefined : fadeUp}
-                className="rounded-2xl border border-slate-200 bg-white p-5"
+                className="rounded-2xl border border-blue-200 bg-white p-5"
               >
                 <div className="mb-4 flex items-center justify-between gap-3">
                   <h2 className="text-sm font-semibold text-slate-700">
-                    Submission time
+                    Model Score
                   </h2>
-                  <Clock3
+                  <FileSearch
                     aria-hidden="true"
-                    className="text-slate-500"
-                    size={22}
+                    className="text-blue-700"
+                    size={24}
                   />
                 </div>
-                <p className="text-xl font-bold text-slate-900">
-                  {scan?.created_at ? "Recorded" : "Unavailable"}
+
+                <p className="text-2xl font-bold text-slate-950">
+                  {hasModelResult
+                    ? `${modelScorePercentage.toFixed(2)}%`
+                    : "Not available"}
                 </p>
-                <p className="mt-2 text-sm leading-5 text-slate-600">
-                  {formatDateTime(scan?.created_at)}
+
+                {hasModelResult ? (
+                  <div
+                    className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100"
+                    role="progressbar"
+                    aria-label="Model score"
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={Number(modelScorePercentage.toFixed(2))}
+                  >
+                    <div
+                      className="h-full rounded-full bg-blue-600 transition-all duration-500"
+                      style={{ width: `${modelScorePercentage}%` }}
+                    />
+                  </div>
+                ) : (
+                  <div className="mt-4 h-2 rounded-full bg-slate-100" />
+                )}
+
+                <p className="mt-3 text-xs leading-5 text-slate-500">
+                  {hasModelResult
+                    ? "Raw model score, not a calibrated probability."
+                    : "No model score is available for this record."}
                 </p>
               </motion.div>
             </motion.section>
 
+            {/* Analysis information */}
             <motion.section
               variants={shouldReduceMotion ? undefined : fadeUp}
               className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 sm:p-7"
-              aria-labelledby="analysis-availability-title"
+              aria-labelledby="analysis-information-title"
             >
               <div className="mb-5 flex items-center gap-3">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cyan-50 text-cyan-800">
                   <Info aria-hidden="true" size={21} />
                 </div>
+
                 <div>
                   <h2
-                    id="analysis-availability-title"
+                    id="analysis-information-title"
                     className="font-semibold text-slate-900"
                   >
-                    Analysis information
+                    Analysis Information
                   </h2>
                   <p className="mt-1 text-sm text-slate-600">
-                    Available record details and current limitations
+                    What PhishGuard checked and what is not yet available
                   </p>
                 </div>
               </div>
@@ -523,13 +678,44 @@ function ScanResults() {
                     className="mt-0.5 shrink-0 text-blue-700"
                     size={20}
                   />
+
                   <div>
                     <h3 className="font-medium text-slate-900">
-                      Submission record retrieved
+                      URL features extracted
                     </h3>
                     <p className="mt-1 text-sm leading-6 text-slate-600">
-                      The backend returned this URL, record ID, status, and
-                      submission timestamp.
+                      PhishGuard extracts URL characteristics such as URL
+                      length, hostname details, special characters, and
+                      suspicious keywords. The submitted website is not visited.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3 py-4">
+                  {hasModelResult ? (
+                    <CheckCircle2
+                      aria-hidden="true"
+                      className="mt-0.5 shrink-0 text-blue-700"
+                      size={20}
+                    />
+                  ) : (
+                    <Info
+                      aria-hidden="true"
+                      className="mt-0.5 shrink-0 text-amber-700"
+                      size={20}
+                    />
+                  )}
+
+                  <div>
+                    <h3 className="font-medium text-slate-900">
+                      {hasModelResult
+                        ? "ML prediction generated"
+                        : "ML prediction unavailable for this record"}
+                    </h3>
+                    <p className="mt-1 text-sm leading-6 text-slate-600">
+                      {hasModelResult
+                        ? `The experimental Random Forest model generated this result using model version ${scan.model_version || "not recorded"}.`
+                        : "This may be an older submission created before ML analysis was connected. Its missing prediction must not be interpreted as a low-risk result."}
                     </p>
                   </div>
                 </div>
@@ -540,14 +726,14 @@ function ScanResults() {
                     className="mt-0.5 shrink-0 text-amber-700"
                     size={20}
                   />
+
                   <div>
                     <h3 className="font-medium text-slate-900">
-                      Phishing classification unavailable
+                      External threat intelligence unavailable
                     </h3>
                     <p className="mt-1 text-sm leading-6 text-slate-600">
-                      No prediction, confidence score, risk score, or
-                      detection explanation is available because a detection
-                      model has not been integrated.
+                      Domain reputation databases, threat feeds, and live
+                      website inspection are not connected.
                     </p>
                   </div>
                 </div>
@@ -558,19 +744,23 @@ function ScanResults() {
                     className="mt-0.5 shrink-0 text-slate-500"
                     size={20}
                   />
+
                   <div>
                     <h3 className="font-medium text-slate-900">
-                      Threat intelligence unavailable
+                      Experimental model limitation
                     </h3>
                     <p className="mt-1 text-sm leading-6 text-slate-600">
-                      Domain reputation and external threat-feed checks are
-                      not connected.
+                      The model score is not a calibrated probability.
+                      A lower model risk does not guarantee that a website
+                      is safe, and a prediction should not be treated as
+                      a definitive security verdict.
                     </p>
                   </div>
                 </div>
               </div>
             </motion.section>
 
+            {/* Navigation actions */}
             <motion.div
               variants={shouldReduceMotion ? undefined : fadeUp}
               className="flex flex-col gap-3 sm:flex-row"
@@ -601,8 +791,8 @@ function ScanResults() {
           variants={shouldReduceMotion ? undefined : fadeUp}
           className="mt-8 text-center text-xs leading-5 text-slate-600"
         >
-          PhishGuard prototype · A saved submission is not a security verdict.
-          Do not rely on this page to determine whether a website is safe.
+          PhishGuard prototype · Model assessments are experimental and do not
+          guarantee website safety.
         </motion.p>
       </motion.main>
     </div>

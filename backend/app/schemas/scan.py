@@ -1,4 +1,3 @@
-
 from datetime import date, datetime, timezone
 
 from pydantic import BaseModel, ConfigDict, HttpUrl, field_validator
@@ -23,7 +22,7 @@ class ScanRead(BaseModel):
     status: str
     created_at: datetime
 
-    # Machine learning prediction details
+    # ML prediction details
     prediction: str | None = None
     risk_level: str | None = None
     model_score: float | None = None
@@ -48,7 +47,7 @@ class ScanStatsRead(BaseModel):
 
 class DailySubmissionRead(BaseModel):
     date: date
-    total_scans: int
+    count: int
 
 
 class ScanAnalyticsRead(BaseModel):
@@ -58,4 +57,9 @@ class ScanAnalyticsRead(BaseModel):
     failed_scans: int
     unknown_scans: int
     status_counts: dict[str, int]
+
+    from_date: date | None = None
+    through_date: date | None = None
+    timezone: str
+
     daily_submissions: list[DailySubmissionRead]

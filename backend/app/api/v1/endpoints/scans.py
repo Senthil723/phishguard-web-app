@@ -14,6 +14,7 @@ from app.schemas.scan import (
     ScanRead,
     ScanStatsRead,
 )
+from app.services.url_predictor import predict_url
 
 router = APIRouter()
 
@@ -25,6 +26,7 @@ PENDING_STATUSES = {
     "processing",
     "in_progress",
 }
+
 ANALYZED_STATUSES = {"analyzed", "analysed", "completed"}
 FAILED_STATUSES = {"failed", "error"}
 
@@ -48,28 +50,78 @@ def _summarize_status_counts(rows: list[tuple[str | None, int]]) -> dict:
             failed_scans += count
 
     total_scans = sum(status_counts.values())
+
     return {
         "total_scans": total_scans,
         "analyzed_scans": analyzed_scans,
         "pending_scans": pending_scans,
         "failed_scans": failed_scans,
-        "unknown_scans": total_scans
-        - analyzed_scans
-        - pending_scans
-        - failed_scans,
+        "unknown_scans": (
+            total_scans
+            - analyzed_scans
+            - pending_scans
+            - failed_scans
+        ),
         "status_counts": status_counts,
     }
 
 
-@router.post("", response_model=ScanRead, status_code=status.HTTP_201_CREATED)
-def create_scan(payload: ScanCreate, db: Session = Depends(get_db)) -> Scan:
-    """Save a URL submission. This endpoint does not analyze the URL yet."""
-    scan = Scan(url=str(payload.url), status="not_analyzed")
-    db.add(scan)
-    db.commit()
-    db.refresh(scan)
+# --------------------------------------------------
+# CREATE SCAN AND RUN ML PREDICTION
+# --------------------------------------------------
+
+@router.post(
+    "",
+    response_model=ScanRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_scan(
+    payload: ScanCreate,
+    db: Session = Depends(get_db),
+) -> Scan:
+    """
+    Analyze submitted URL features using the local ML model
+    and save the prediction.
+
+    The submitted URL is never visited or downloaded.
+    """
+
+    try:
+        prediction_result = predict_url(str(payload.url))
+
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="The ML model is currently unavailable.",
+        )
+
+    scan = Scan(
+        url=str(payload.url),
+        status="analyzed",
+        prediction=prediction_result["prediction"],
+        risk_level=prediction_result["risk_level"],
+        model_score=prediction_result["model_score"],
+        model_version=prediction_result["model_version"],
+    )
+
+    try:
+        db.add(scan)
+        db.commit()
+        db.refresh(scan)
+
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not save the scan result.",
+        )
+
     return scan
 
+
+# --------------------------------------------------
+# SCAN HISTORY
+# --------------------------------------------------
 
 @router.get("", response_model=list[ScanRead])
 def list_scans(
@@ -77,20 +129,39 @@ def list_scans(
     db: Session = Depends(get_db),
 ) -> list[Scan]:
     """Return the latest saved scan submissions."""
+
     statement = (
         select(Scan)
         .order_by(Scan.created_at.desc(), Scan.id.desc())
         .limit(limit)
     )
+
     return list(db.scalars(statement).all())
 
 
-@router.get("/stats")
-def get_scan_stats(db: Session = Depends(get_db)) -> ScanStatsRead:
-    """Return database-wide scan statistics, without analyzing URLs."""
-    statement = select(Scan.status, func.count(Scan.id)).group_by(Scan.status)
-    return ScanStatsRead(**_summarize_status_counts(db.execute(statement).all()))
+# --------------------------------------------------
+# SCAN STATISTICS
+# --------------------------------------------------
 
+@router.get("/stats", response_model=ScanStatsRead)
+def get_scan_stats(
+    db: Session = Depends(get_db),
+) -> ScanStatsRead:
+    """Return database-wide scan statistics."""
+
+    statement = (
+        select(Scan.status, func.count(Scan.id))
+        .group_by(Scan.status)
+    )
+
+    return ScanStatsRead(
+        **_summarize_status_counts(db.execute(statement).all())
+    )
+
+
+# --------------------------------------------------
+# REPORTS AND ANALYTICS
+# --------------------------------------------------
 
 @router.get("/analytics", response_model=ScanAnalyticsRead)
 def get_scan_analytics(
@@ -98,7 +169,8 @@ def get_scan_analytics(
     through_date: date | None = Query(default=None),
     db: Session = Depends(get_db),
 ) -> ScanAnalyticsRead:
-    """Return database-wide scan statistics and daily counts in a UTC date range."""
+    """Return scan statistics and daily counts in UTC."""
+
     if from_date and through_date and from_date > through_date:
         raise HTTPException(
             status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
@@ -106,9 +178,15 @@ def get_scan_analytics(
         )
 
     filters = []
+
     if from_date:
-        start = datetime.combine(from_date, time.min, tzinfo=timezone.utc)
+        start = datetime.combine(
+            from_date,
+            time.min,
+            tzinfo=timezone.utc,
+        )
         filters.append(Scan.created_at >= start)
+
     if through_date:
         if through_date == date.max:
             end_inclusive = datetime.combine(
@@ -117,6 +195,7 @@ def get_scan_analytics(
                 tzinfo=timezone.utc,
             )
             filters.append(Scan.created_at <= end_inclusive)
+
         else:
             end_exclusive = datetime.combine(
                 through_date + timedelta(days=1),
@@ -130,15 +209,20 @@ def get_scan_analytics(
         .where(*filters)
         .group_by(Scan.status)
     )
-    summary = _summarize_status_counts(db.execute(status_statement).all())
+
+    summary = _summarize_status_counts(
+        db.execute(status_statement).all()
+    )
 
     day_expression = func.date(Scan.created_at)
+
     activity_statement = (
         select(day_expression, func.count(Scan.id))
         .where(*filters)
         .group_by(day_expression)
         .order_by(day_expression)
     )
+
     daily_submissions = [
         {"date": day, "count": count}
         for day, count in db.execute(activity_statement).all()
@@ -153,13 +237,23 @@ def get_scan_analytics(
     )
 
 
+# --------------------------------------------------
+# GET INDIVIDUAL SCAN
+# --------------------------------------------------
+
 @router.get("/{scan_id}", response_model=ScanRead)
-def get_scan(scan_id: int, db: Session = Depends(get_db)) -> Scan:
+def get_scan(
+    scan_id: int,
+    db: Session = Depends(get_db),
+) -> Scan:
     """Return one saved scan by its numeric ID."""
+
     scan = db.get(Scan, scan_id)
+
     if scan is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Scan not found",
         )
+
     return scan
