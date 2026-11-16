@@ -13,6 +13,8 @@ from app.db.session import engine
 
 # Import models so SQLAlchemy knows which tables to create.
 from app.models import scan  # noqa: F401
+from app.models import user
+from app.models import session
 
 
 def initialize_database() -> None:
@@ -41,7 +43,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
-    allow_credentials=False,
+    allow_credentials=True,
     allow_methods=["GET", "POST"],
     allow_headers=["Content-Type"],
 )

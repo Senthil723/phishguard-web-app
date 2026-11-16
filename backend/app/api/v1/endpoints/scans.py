@@ -7,6 +7,9 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.api.dependencies import require_current_user
+from app.core.csrf import validate_request_origin
+from app.models.user import User
 from app.models.scan import Scan
 from app.schemas.scan import (
     ScanAnalyticsRead,
@@ -78,6 +81,8 @@ def _summarize_status_counts(rows: list[tuple[str | None, int]]) -> dict:
 def create_scan(
     payload: ScanCreate,
     db: Session = Depends(get_db),
+    current_user: User = Depends(require_current_user),
+    _: None = Depends(validate_request_origin),
 ) -> Scan:
     """
     Analyze submitted URL features using the local ML model
@@ -96,6 +101,7 @@ def create_scan(
         )
 
     scan = Scan(
+        user_id=current_user.id,
         url=str(payload.url),
         status="analyzed",
         prediction=prediction_result["prediction"],
@@ -123,40 +129,53 @@ def create_scan(
 # SCAN HISTORY
 # --------------------------------------------------
 
+
 @router.get("", response_model=list[ScanRead])
 def list_scans(
     limit: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
+    current_user: User = Depends(require_current_user),
 ) -> list[Scan]:
-    """Return the latest saved scan submissions."""
+    """Return scans belonging to the logged-in user."""
 
     statement = (
         select(Scan)
-        .order_by(Scan.created_at.desc(), Scan.id.desc())
+        .where(Scan.user_id == current_user.id)
+        .order_by(
+            Scan.created_at.desc(),
+            Scan.id.desc(),
+        )
         .limit(limit)
     )
 
     return list(db.scalars(statement).all())
 
 
+
 # --------------------------------------------------
 # SCAN STATISTICS
 # --------------------------------------------------
 
+
 @router.get("/stats", response_model=ScanStatsRead)
 def get_scan_stats(
     db: Session = Depends(get_db),
+    current_user: User = Depends(require_current_user),
 ) -> ScanStatsRead:
-    """Return database-wide scan statistics."""
+    """Return scan statistics for the logged-in user."""
 
     statement = (
         select(Scan.status, func.count(Scan.id))
+        .where(Scan.user_id == current_user.id)
         .group_by(Scan.status)
     )
 
     return ScanStatsRead(
-        **_summarize_status_counts(db.execute(statement).all())
+        **_summarize_status_counts(
+            db.execute(statement).all()
+        )
     )
+
 
 
 # --------------------------------------------------
@@ -168,6 +187,7 @@ def get_scan_analytics(
     from_date: date | None = Query(default=None),
     through_date: date | None = Query(default=None),
     db: Session = Depends(get_db),
+    current_user: User = Depends(require_current_user),
 ) -> ScanAnalyticsRead:
     """Return scan statistics and daily counts in UTC."""
 
@@ -177,7 +197,7 @@ def get_scan_analytics(
             detail="from_date must be on or before through_date",
         )
 
-    filters = []
+    filters = [Scan.user_id == current_user.id]
 
     if from_date:
         start = datetime.combine(
@@ -241,14 +261,21 @@ def get_scan_analytics(
 # GET INDIVIDUAL SCAN
 # --------------------------------------------------
 
+
 @router.get("/{scan_id}", response_model=ScanRead)
 def get_scan(
     scan_id: int,
     db: Session = Depends(get_db),
+    current_user: User = Depends(require_current_user),
 ) -> Scan:
-    """Return one saved scan by its numeric ID."""
+    """Return a scan only if it belongs to the logged-in user."""
 
-    scan = db.get(Scan, scan_id)
+    scan = db.scalar(
+        select(Scan).where(
+            Scan.id == scan_id,
+            Scan.user_id == current_user.id,
+        )
+    )
 
     if scan is None:
         raise HTTPException(
