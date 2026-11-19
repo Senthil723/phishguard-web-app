@@ -1,10 +1,24 @@
+
 import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "motion/react";
+
 import {
-  Activity, BarChart3, ChevronDown, FileSearch, History, LayoutDashboard,
-  Menu, Search, Settings, ShieldCheck, X, Lightbulb, Bell, UserRound,
+  BarChart3,
+  ChevronDown,
+  FileSearch,
+  History,
+  LayoutDashboard,
+  Menu,
+  Search,
+  Settings,
+  ShieldCheck,
+  X,
+  UserRound,
+  LogOut,
 } from "lucide-react";
+
+import { logoutUser } from "../services/api.js";
 
 const navigation = [
   { label: "Dashboard", to: "/dashboard", icon: LayoutDashboard },
@@ -12,32 +26,71 @@ const navigation = [
   { label: "Scan Results", to: "/results", icon: FileSearch },
   { label: "Scan History", to: "/history", icon: History },
   { label: "Reports & Analytics", to: "/reports", icon: BarChart3 },
-  { label: "Security Insights", to: "/insights", icon: Lightbulb },
 ];
 
 export default function AppLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+
+  const [isSigningOut, setIsSigningOut] = useState(false);
+  const [logoutError, setLogoutError] = useState("");
+
   const mobileMenuRef = useRef(null);
   const menuTriggerRef = useRef(null);
   const menuWasOpenRef = useRef(false);
+
   const navigate = useNavigate();
+
+  // ---------------------------------------
+  // REAL LOGOUT USING FASTAPI
+  // ---------------------------------------
+
+  async function handleLogout() {
+    if (isSigningOut) return;
+
+    setIsSigningOut(true);
+    setLogoutError("");
+
+    try {
+      await logoutUser();
+
+      setProfileOpen(false);
+      setMobileOpen(false);
+
+      navigate("/", { replace: true });
+    } catch (error) {
+      setLogoutError(
+        error.message ||
+          "Could not sign out. Please try again."
+      );
+    } finally {
+      setIsSigningOut(false);
+    }
+  }
+
+  // ---------------------------------------
+  // MOBILE MENU KEYBOARD ACCESSIBILITY
+  // ---------------------------------------
 
   useEffect(() => {
     if (!mobileOpen) {
       if (menuWasOpenRef.current) {
         menuTriggerRef.current?.focus();
       }
+
       menuWasOpenRef.current = false;
       return undefined;
     }
 
     menuWasOpenRef.current = true;
+
     const menu = mobileMenuRef.current;
+
     const getFocusableItems = () =>
       menu?.querySelectorAll(
         'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
       ) ?? [];
+
     const focusableItems = getFocusableItems();
     focusableItems[0]?.focus();
 
@@ -56,10 +109,16 @@ export default function AppLayout() {
       if (!menu?.contains(document.activeElement)) {
         event.preventDefault();
         firstItem?.focus();
-      } else if (event.shiftKey && document.activeElement === firstItem) {
+      } else if (
+        event.shiftKey &&
+        document.activeElement === firstItem
+      ) {
         event.preventDefault();
         lastItem?.focus();
-      } else if (!event.shiftKey && document.activeElement === lastItem) {
+      } else if (
+        !event.shiftKey &&
+        document.activeElement === lastItem
+      ) {
         event.preventDefault();
         firstItem?.focus();
       }
@@ -68,26 +127,49 @@ export default function AppLayout() {
     document.addEventListener("keydown", handleMenuKeyDown);
 
     return () => {
-      document.removeEventListener("keydown", handleMenuKeyDown);
+      document.removeEventListener(
+        "keydown",
+        handleMenuKeyDown
+      );
     };
   }, [mobileOpen]);
 
-  const navItems = (mobile = false) => navigation.map(({ label, to, icon: Icon }) => (
-    <NavLink
-      key={to}
-      to={to}
-      onClick={() => setMobileOpen(false)}
-      className={({ isActive }) => `inline-flex shrink-0 items-center gap-2 rounded-xl px-2.5 py-2 text-[13px] font-medium transition-all duration-200 ${isActive ? "bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-100" : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"} ${mobile ? "w-full" : ""}`}
-    >
-      <Icon size={17} strokeWidth={1.9} />
-      <span>{label}</span>
-    </NavLink>
-  ));
+  // ---------------------------------------
+  // SHARED NAVIGATION
+  // ---------------------------------------
+
+  const navItems = () =>
+    navigation.map(({ label, to, icon: Icon }) => (
+      <NavLink
+        key={to}
+        to={to}
+        onClick={() => setMobileOpen(false)}
+        className={({ isActive }) =>
+          `flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-all duration-200 ${
+            isActive
+              ? "bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-100"
+              : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
+          }`
+        }
+      >
+        <Icon size={17} strokeWidth={1.9} />
+        <span>{label}</span>
+      </NavLink>
+    ));
 
   return (
     <div className="min-h-screen bg-[#f6f8fc] text-slate-900">
+
+      {/* =====================================
+          TOP NAVIGATION BAR
+      ===================================== */}
+
       <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl">
+
         <div className="mx-auto flex min-h-[76px] max-w-[1600px] items-center gap-4 px-4 sm:px-6 xl:px-9">
+
+          {/* Mobile menu button */}
+
           <button
             type="button"
             ref={menuTriggerRef}
@@ -96,69 +178,270 @@ export default function AppLayout() {
             aria-controls="mobile-navigation"
             onClick={() => setMobileOpen(true)}
             className="rounded-xl border border-slate-200 p-2.5 text-slate-600 hover:bg-slate-50 lg:hidden"
-          ><Menu size={19} /></button>
+          >
+            <Menu size={19} />
+          </button>
 
-          <button type="button" onClick={() => navigate("/dashboard")} className="flex shrink-0 items-center gap-3 text-left">
+          {/* Brand */}
+
+          <button
+            type="button"
+            onClick={() => navigate("/dashboard")}
+            className="flex shrink-0 items-center gap-3 text-left"
+          >
             <span className="flex h-10 w-10 items-center justify-center rounded-[14px] bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-lg shadow-blue-600/20">
               <ShieldCheck size={23} strokeWidth={2.1} />
             </span>
+
             <span className="hidden sm:block">
-              <span className="block text-[19px] font-bold tracking-tight text-slate-900">Phish<span className="text-blue-600">Guard</span></span>
-              <span className="mt-0.5 block text-[9px] font-semibold uppercase tracking-[0.2em] text-slate-400">Security workspace</span>
+              <span className="block text-[19px] font-bold tracking-tight text-slate-900">
+                Phish
+                <span className="text-blue-600">
+                  Guard
+                </span>
+              </span>
+
+              <span className="mt-0.5 block text-[9px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+                Security workspace
+              </span>
             </span>
           </button>
 
-          <nav aria-label="Main navigation" className="ml-3 hidden min-w-0 flex-1 flex-wrap items-center gap-1 py-3 lg:flex">
-            {navItems()}
-          </nav>
+          {/* Right header controls */}
 
           <div className="ml-auto flex shrink-0 items-center gap-2">
+
             <span className="hidden items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-[11px] font-semibold text-amber-700 xl:inline-flex">
-              <span className="h-1.5 w-1.5 rounded-full bg-amber-500" /> Prototype mode
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+              Prototype mode
             </span>
-            <button type="button" aria-label="Notifications" title="Notifications are not connected yet" className="relative rounded-xl p-2.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900">
-              <Bell size={19} />
-              <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-blue-500 ring-2 ring-white" />
-            </button>
+
+            {/* =====================================
+                ACCOUNT PROFILE MENU
+            ===================================== */}
+
             <div className="relative">
-              <button type="button" onClick={() => setProfileOpen((open) => !open)} aria-expanded={profileOpen} aria-label="Open account menu" className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white p-1.5 pr-2.5 transition hover:bg-slate-50">
-                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-700"><UserRound size={17} /></span>
-                <ChevronDown size={14} className="text-slate-400" />
+
+              <button
+                type="button"
+                onClick={() => {
+                  setProfileOpen((open) => !open);
+                  setLogoutError("");
+                }}
+                aria-expanded={profileOpen}
+                aria-label="Open account menu"
+                className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white p-1.5 pr-2.5 transition hover:bg-slate-50"
+              >
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-700">
+                  <UserRound size={17} />
+                </span>
+
+                <ChevronDown
+                  size={14}
+                  className="text-slate-400"
+                />
               </button>
+
               <AnimatePresence>
-                {profileOpen && <motion.div initial={{ opacity: 0, y: -5, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -5 }} transition={{ duration: 0.16 }} className="absolute right-0 top-12 w-48 rounded-xl border border-slate-200 bg-white p-2 shadow-xl shadow-slate-900/10">
-                  <button type="button" onClick={() => { setProfileOpen(false); navigate("/settings"); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50"><Settings size={16} /> Settings</button>
-                  <button type="button" onClick={() => { setProfileOpen(false); navigate("/"); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50"><Activity size={16} /> Demo sign out</button>
-                  <p className="px-3 pb-1 pt-2 text-[10px] leading-4 text-slate-400">Authentication is not connected.</p>
-                </motion.div>}
+                {profileOpen && (
+                  <motion.div
+                    initial={{
+                      opacity: 0,
+                      y: -5,
+                      scale: 0.98,
+                    }}
+                    animate={{
+                      opacity: 1,
+                      y: 0,
+                      scale: 1,
+                    }}
+                    exit={{
+                      opacity: 0,
+                      y: -5,
+                    }}
+                    transition={{ duration: 0.16 }}
+                    className="absolute right-0 top-12 w-56 rounded-xl border border-slate-200 bg-white p-2 shadow-xl shadow-slate-900/10"
+                  >
+
+                    {/* Settings */}
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setProfileOpen(false);
+                        navigate("/settings");
+                      }}
+                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50"
+                    >
+                      <Settings size={16} />
+                      Settings
+                    </button>
+
+                    {/* REAL SIGN OUT BUTTON */}
+
+                    <button
+                      type="button"
+                      onClick={handleLogout}
+                      disabled={isSigningOut}
+                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <LogOut size={16} />
+
+                      {isSigningOut
+                        ? "Signing out..."
+                        : "Sign out"}
+                    </button>
+
+                    {/* Logout error */}
+
+                    {logoutError && (
+                      <p
+                        role="alert"
+                        className="mx-2 mt-2 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-xs leading-5 text-red-700"
+                      >
+                        {logoutError}
+                      </p>
+                    )}
+
+                    <p className="px-3 pb-1 pt-2 text-[10px] leading-4 text-slate-400">
+                      Account sessions are managed securely by the PhishGuard backend.
+                    </p>
+
+                  </motion.div>
+                )}
               </AnimatePresence>
             </div>
           </div>
         </div>
-        <nav aria-label="Mobile navigation" className="hidden border-t border-slate-100 px-4 py-2 md:flex md:gap-1 lg:hidden">
-          <div className="flex w-full flex-wrap gap-1">{navItems()}</div>
-        </nav>
+
       </header>
 
+      {/* =====================================
+          MOBILE NAVIGATION DRAWER
+      ===================================== */}
+
       <AnimatePresence>
-        {mobileOpen && <div className="fixed inset-0 z-50 lg:hidden">
-          <motion.button aria-label="Close navigation backdrop" onClick={() => setMobileOpen(false)} className="absolute inset-0 bg-slate-950/30 backdrop-blur-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} />
-          <motion.aside id="mobile-navigation" ref={mobileMenuRef} role="dialog" aria-modal="true" aria-labelledby="mobile-navigation-title" initial={{ x: "-100%" }} animate={{ x: 0 }} exit={{ x: "-100%" }} transition={{ duration: 0.23, ease: "easeOut" }} className="absolute inset-y-0 left-0 w-[min(88vw,340px)] overflow-y-auto border-r border-slate-200 bg-white p-5 shadow-2xl">
-            <h2 id="mobile-navigation-title" className="sr-only">PhishGuard navigation</h2>
-            <div className="mb-7 flex items-center justify-between"><div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white"><ShieldCheck size={22} /></span><span className="text-lg font-bold">Phish<span className="text-blue-600">Guard</span></span></div><button type="button" onClick={() => setMobileOpen(false)} aria-label="Close menu" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"><X size={19} /></button></div>
-            <p className="mb-3 px-2 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">Workspace</p>
-            <div className="space-y-1">{navItems(true)}</div>
-            <div className="mt-8 rounded-xl border border-blue-100 bg-blue-50/70 p-4"><p className="text-sm font-semibold text-blue-900">Stay alert online</p><p className="mt-1 text-xs leading-5 text-blue-800/70">Check unfamiliar links carefully before opening them.</p></div>
-          </motion.aside>
-        </div>}
+        {mobileOpen && (
+          <div className="fixed inset-0 z-50 lg:hidden">
+
+            <motion.button
+              type="button"
+              aria-label="Close navigation backdrop"
+              onClick={() => setMobileOpen(false)}
+              className="absolute inset-0 bg-slate-950/30 backdrop-blur-sm"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            />
+
+            <motion.aside
+              id="mobile-navigation"
+              ref={mobileMenuRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="mobile-navigation-title"
+              initial={{ x: "-100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "-100%" }}
+              transition={{
+                duration: 0.23,
+                ease: "easeOut",
+              }}
+              className="absolute inset-y-0 left-0 w-[min(88vw,340px)] overflow-y-auto border-r border-slate-200 bg-white p-5 shadow-2xl"
+            >
+
+              <h2
+                id="mobile-navigation-title"
+                className="sr-only"
+              >
+                PhishGuard navigation
+              </h2>
+
+              {/* Mobile branding */}
+
+              <div className="mb-7 flex items-center justify-between">
+
+                <div className="flex items-center gap-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white">
+                    <ShieldCheck size={22} />
+                  </span>
+
+                  <span className="text-lg font-bold">
+                    Phish
+                    <span className="text-blue-600">
+                      Guard
+                    </span>
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setMobileOpen(false)}
+                  aria-label="Close menu"
+                  className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
+                >
+                  <X size={19} />
+                </button>
+              </div>
+
+              <p className="mb-3 px-2 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
+                Workspace
+              </p>
+
+              <div className="space-y-1">
+                {navItems()}
+              </div>
+
+              <div className="mt-8 rounded-xl border border-blue-100 bg-blue-50/70 p-4">
+                <p className="text-sm font-semibold text-blue-900">
+                  Stay alert online
+                </p>
+
+                <p className="mt-1 text-xs leading-5 text-blue-800/70">
+                  Check unfamiliar links carefully before opening them.
+                </p>
+              </div>
+
+            </motion.aside>
+          </div>
+        )}
       </AnimatePresence>
 
-      <div className="mx-auto min-h-[calc(100vh-76px)] max-w-[1600px] px-4 py-7 sm:px-6 sm:py-9 xl:px-9">
-        <Outlet />
+      {/* =====================================
+          PAGE CONTENT
+      ===================================== */}
+
+      <div className="mx-auto flex min-h-[calc(100vh-76px)] max-w-[1600px]">
+        <aside className="hidden w-64 shrink-0 border-r border-slate-200/80 bg-white/70 px-4 py-7 lg:block xl:px-5" aria-label="Workspace sidebar">
+          <nav aria-label="Main navigation" className="sticky top-[104px]">
+            <p className="mb-3 px-3 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
+              Workspace
+            </p>
+            <div className="space-y-1">{navItems()}</div>
+          </nav>
+        </aside>
+
+        <div className="min-w-0 flex-1 px-4 py-7 sm:px-6 sm:py-9 xl:px-9">
+          <Outlet />
+
+        {/* Footer */}
+
         <footer className="mt-12 flex flex-col justify-between gap-2 border-t border-slate-200/80 pt-5 text-xs text-slate-400 sm:flex-row sm:items-center">
-          <span>© 2026 PhishGuard · Educational prototype</span>
-          <span className="inline-flex items-center gap-2"><ShieldCheck size={14} className="text-blue-500" /> Demo data only · No live detection</span>
-        </footer>
+
+          <span>
+            © 2026 PhishGuard · Educational prototype
+          </span>
+
+          <span className="inline-flex items-center gap-2">
+            <ShieldCheck
+              size={14}
+              className="text-blue-500"
+            />
+            ML-assisted assessments · Not a guarantee of URL safety
+          </span>
+
+          </footer>
+        </div>
       </div>
     </div>
   );

@@ -38,7 +38,7 @@ export default function Dashboard() {
     setError("");
 
     try {
-      // Fetch database-wide statistics and recent scan records together.
+      // Fetch this user's statistics and recent scan records together.
       const [statsData, records] = await Promise.all([
         getScanStats(),
         getScans(20),
@@ -72,7 +72,7 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    loadDashboard();
+    void Promise.resolve().then(loadDashboard);
   }, [loadDashboard]);
 
   // Dashboard summary cards.
@@ -80,7 +80,7 @@ export default function Dashboard() {
     {
       label: "Total URLs Submitted",
       value: stats?.total_scans ?? 0,
-      description: "All records in the database",
+      description: "Your submitted URLs",
       icon: Link2,
       iconStyle: "bg-blue-50 text-blue-700",
     },
@@ -107,8 +107,8 @@ export default function Dashboard() {
     },
     {
       label: "Detection Engine",
-      value: "Not Connected",
-      description: "ML model unavailable",
+      value: "ML-Assisted",
+      description: "URL-based machine learning analysis",
       icon: ShieldAlert,
       iconStyle: "bg-violet-50 text-violet-700",
     },
@@ -456,8 +456,10 @@ export default function Dashboard() {
             className="mt-0.5 shrink-0 text-amber-600"
           />
 
-          These are saved submissions, not phishing verdicts. A real detection
-          model has not classified these URLs.
+          These are saved URL assessments. Where available, predictions are
+          generated using a machine learning model. Results are estimates,
+          not guarantees that a website is safe or malicious.
+
         </div>
       </motion.section>
     </motion.section>

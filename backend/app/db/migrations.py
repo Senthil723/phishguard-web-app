@@ -1,20 +1,23 @@
 
 from sqlalchemy import inspect, text
+from sqlalchemy.engine import Engine
 
 from app.db.session import engine
+from app.models.scan import Scan
 
 
-def migrate_scan_prediction_columns() -> None:
-    """Safely add ML prediction columns without deleting existing records."""
+def migrate_scan_columns(db_engine: Engine = engine) -> None:
+    """Bring legacy scan tables up to the current nullable-column schema."""
 
     new_columns = {
+        "user_id": "INTEGER REFERENCES users(id)",
         "prediction": "VARCHAR(32)",
         "risk_level": "VARCHAR(16)",
         "model_score": "FLOAT",
         "model_version": "VARCHAR(64)",
     }
 
-    with engine.begin() as connection:
+    with db_engine.begin() as connection:
         inspector = inspect(connection)
 
         if not inspector.has_table("scans"):
@@ -29,14 +32,25 @@ def migrate_scan_prediction_columns() -> None:
 
         for column_name, column_type in new_columns.items():
             if column_name not in existing_columns:
+                if column_name == "user_id" and db_engine.dialect.name == "mysql":
+                    column_type = "INTEGER NULL"
                 connection.execute(
                     text(
                         f"ALTER TABLE scans "
                         f"ADD COLUMN {column_name} {column_type}"
                     )
                 )
-                print(f"Added column: {column_name}")
-            else:
-                print(f"Already exists: {column_name}")
 
-    print("Scan table migration completed.")
+        if db_engine.dialect.name == "mysql":
+            foreign_keys = inspector.get_foreign_keys("scans")
+            if not any("user_id" in key["constrained_columns"] for key in foreign_keys):
+                connection.execute(text(
+                    "ALTER TABLE scans ADD CONSTRAINT fk_scans_user_id "
+                    "FOREIGN KEY (user_id) REFERENCES users(id)"
+                ))
+
+        user_index = next(
+            index for index in Scan.__table__.indexes
+            if index.name == "ix_scans_user_id"
+        )
+        user_index.create(bind=connection, checkfirst=True)

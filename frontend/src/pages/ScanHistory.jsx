@@ -20,13 +20,12 @@ import {
   XCircle,
 } from "lucide-react";
 import { fadeUp, staggerContainer } from "../animations";
-import { getScans } from "../services/api";
+import { ApiError, getAllScans } from "../services/api";
 import {
   getScanStatusCategory,
   getScanStatusLabel,
 } from "../utils/scanStatus";
 
-const HISTORY_LIMIT = 100;
 const PAGE_SIZE = 10;
 
 const statusAppearance = {
@@ -189,7 +188,7 @@ export default function ScanHistory() {
     loadingRef.current = true;
 
     try {
-      const scans = await getScans(HISTORY_LIMIT);
+      const scans = await getAllScans();
 
       if (!Array.isArray(scans) || !scans.every(isValidRecord)) {
         throw new Error("The backend returned an unexpected history response.");
@@ -205,10 +204,21 @@ export default function ScanHistory() {
       );
     } catch (requestError) {
       console.error("Failed to load scan history:", requestError);
-      setError(
-        "Unable to load scan history. Check that the backend is running and try again."
-      );
-    } finally {
+
+      if (
+        requestError instanceof ApiError &&
+        requestError.status === 401
+    ) {
+        setError(
+          "Your login session has expired. Please sign in again to view your scan history."
+        );
+      } else {
+        setError(
+          "Unable to load scan history. Check that the backend is running and try again."
+    );
+  }
+}
+ finally {
       loadingRef.current = false;
       setLoading(false);
     }
@@ -310,18 +320,6 @@ export default function ScanHistory() {
   const currentPage = Math.min(page, pageCount);
   const firstVisible = filtered.length ? (currentPage - 1) * PAGE_SIZE : 0;
   const visibleRows = filtered.slice(firstVisible, firstVisible + PAGE_SIZE);
-  const summary = useMemo(
-    () =>
-      rows.reduce(
-        (counts, row) => {
-          counts[getScanStatusCategory(row.status)] += 1;
-          return counts;
-        },
-        { pending: 0, completed: 0, failed: 0, unknown: 0 }
-      ),
-    [rows]
-  );
-
   function updateFilter(setter, value) {
     setter(value);
     setPage(1);
@@ -385,8 +383,8 @@ export default function ScanHistory() {
             Scan History
           </h1>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-            Browse saved URL submissions and their database-reported status.
-            Phishing detection is not connected.
+            Browse your saved URL assessments, review analysis statuses,
+            and open individual scan results to view ML predictions and risk levels.
           </p>
         </div>
 
@@ -415,33 +413,6 @@ export default function ScanHistory() {
           </button>
         </div>
       </motion.header>
-
-      <motion.section
-        variants={itemVariants}
-        className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4"
-        aria-label={`Status counts across ${rows.length} loaded records`}
-      >
-        {[
-          ["Pending", summary.pending, "text-amber-800", "bg-amber-50"],
-          ["Completed", summary.completed, "text-cyan-800", "bg-cyan-50"],
-          ["Failed", summary.failed, "text-red-800", "bg-red-50"],
-          ["Unknown", summary.unknown, "text-slate-700", "bg-slate-100"],
-        ].map(([label, count, textColor, surface]) => (
-          <article
-            key={label}
-            className={`rounded-xl border border-slate-200 ${surface} p-4`}
-          >
-            <p className="text-xs font-medium text-slate-600">{label} status</p>
-            <p className={`mt-1 text-2xl font-bold ${textColor}`}>
-              {loading ? "—" : count}
-            </p>
-          </article>
-        ))}
-        <p className="col-span-full text-xs text-slate-500">
-          Counts reflect the {rows.length} records loaded from the latest{" "}
-          {HISTORY_LIMIT} backend results, not necessarily every database record.
-        </p>
-      </motion.section>
 
       <motion.section
         variants={itemVariants}
@@ -563,7 +534,7 @@ export default function ScanHistory() {
                 : `Showing ${filtered.length ? firstVisible + 1 : 0}–${Math.min(
                     firstVisible + PAGE_SIZE,
                     filtered.length
-                  )} of ${filtered.length} matching loaded records`}
+                  )} of ${filtered.length} matching records`}
             </p>
             <button
               type="button"
@@ -611,6 +582,17 @@ export default function ScanHistory() {
             <p className="mx-auto mt-2 max-w-md text-sm text-slate-600">
               {error}
             </p>
+
+{error.includes("login session has expired") && (
+  <Link
+    to="/"
+    className="mt-5 inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
+  >
+    Return to Login
+    <ArrowUpRight size={16} aria-hidden="true" />
+  </Link>
+)}
+
             <button
               type="button"
               onClick={refreshHistory}
@@ -778,9 +760,11 @@ export default function ScanHistory() {
             size={15}
             className="mt-0.5 shrink-0 text-amber-700"
           />
-          These records are saved submissions, not phishing verdicts. Only
-          backend statuses are shown; no detection model or security service
-          has classified these URLs.
+          PhishGuard uses an experimental machine learning model to assess
+          phishing-related URL patterns. Open a scan to view its available
+          ML prediction, risk level, and model score. Results are estimates,
+          not guarantees of website safety.
+
         </div>
       </motion.section>
     </motion.main>

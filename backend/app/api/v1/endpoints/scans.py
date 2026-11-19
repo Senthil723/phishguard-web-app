@@ -133,6 +133,7 @@ def create_scan(
 @router.get("", response_model=list[ScanRead])
 def list_scans(
     limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_current_user),
 ) -> list[Scan]:
@@ -145,6 +146,7 @@ def list_scans(
             Scan.created_at.desc(),
             Scan.id.desc(),
         )
+        .offset(offset)
         .limit(limit)
     )
 

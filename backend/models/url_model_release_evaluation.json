@@ -1,0 +1,21 @@
+{
+  "model_version": "url_random_forest_tuned_v1",
+  "dataset": "data/processed/url_test.csv",
+  "test_records": 69204,
+  "phishing_records": 22642,
+  "decision_threshold": 0.89,
+  "high_risk_precision": 0.9722222222222222,
+  "high_risk_recall": 0.7837205193887465,
+  "roc_auc": 0.9806974975899705,
+  "average_precision": 0.9660666121508313,
+  "confusion_matrix_high_risk": {
+    "true_negative": 46055,
+    "false_positive": 507,
+    "false_negative": 4897,
+    "true_positive": 17745
+  },
+  "needs_review_records": 4816,
+  "low_risk_records": 46136,
+  "phishing_in_low_risk": 1623,
+  "note": "URL feature model only; it does not visit websites or guarantee safety."
+}

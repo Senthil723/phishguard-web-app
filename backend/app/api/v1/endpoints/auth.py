@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.core.security import hash_password, verify_password
 from app.core.csrf import validate_request_origin
+from app.core.config import get_settings
 from app.db.session import get_db
 from app.models.user import User
 from app.schemas.user import UserRead, UserRegister, UserLogin
@@ -145,7 +146,7 @@ def login_user(
         key="phishguard_session",
         value=token,
         httponly=True,
-        secure=False,  # Local HTTP development only.
+        secure=get_settings().session_cookie_secure,
         samesite="lax",
         max_age=max_age,
         path="/api/v1",
@@ -218,7 +219,7 @@ def logout_user(
         path="/api/v1",
         httponly=True,
         samesite="lax",
-        secure=False,  # Local HTTP development only.
+        secure=get_settings().session_cookie_secure,
     )
 
     return Response(

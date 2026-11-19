@@ -32,3 +32,12 @@ __pycache__/
 .pytest_cache/
 .venv/
 venv/
+*.db
+*.db-*
+
+# Local SQLite databases
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3

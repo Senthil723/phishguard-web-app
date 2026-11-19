@@ -177,7 +177,7 @@ export default function Settings() {
             <PreferenceCard
               icon={CheckCircle2}
               title="Submission confirmation"
-              description="Show the success notice on the Results page after the backend confirms that a submission was saved. This does not indicate phishing analysis."
+              description="Show the success notice on the Results page after the backend saves the URL assessment."
             >
               <label className="inline-flex cursor-pointer items-center gap-3">
                 <span className="text-sm font-medium text-slate-700">
@@ -233,8 +233,8 @@ export default function Settings() {
             <div className="flex items-start gap-2 rounded-xl border border-amber-100 bg-amber-50/70 p-3 text-xs leading-5 text-amber-950">
               <Info aria-hidden="true" size={16} className="mt-0.5 shrink-0" />
               <p>
-                PhishGuard saves submitted URL records but does not currently
-                perform phishing classification or threat-intelligence checks.
+                PhishGuard uses a local experimental model to assess URL patterns.
+                It does not inspect website content or query live threat intelligence.
                 HTTPS encrypts a connection but does not prove a site is trustworthy.
               </p>
             </div>
@@ -255,7 +255,7 @@ export default function Settings() {
               />
               <InformationItem label="Frontend" value="React with Vite" />
               <InformationItem label="Backend" value="Python with FastAPI" />
-              <InformationItem label="Detection engine" value="Not connected" />
+              <InformationItem label="Detection engine" value="Experimental local URL model" />
               <InformationItem
                 label="Application version"
                 value="Development version; release version not configured"
@@ -264,9 +264,8 @@ export default function Settings() {
             <div className="flex items-start gap-3 rounded-xl border border-blue-100 bg-blue-50/70 p-4">
               <LockKeyhole aria-hidden="true" size={18} className="mt-0.5 shrink-0 text-blue-800" />
               <p className="text-sm leading-6 text-blue-950">
-                Genuine phishing classification requires integration of a
-                trained machine-learning model or a real detection service.
-                Current statuses describe saved backend records only.
+                Model predictions are estimates based on URL features. Processing
+                statuses describe saved backend records and are not phishing verdicts.
               </p>
             </div>
           </SettingSection>
@@ -275,15 +274,14 @@ export default function Settings() {
         <motion.div variants={itemVariants}>
           <SettingSection
             icon={UserRound}
-            title="Account management"
-            description="Future capability — not available in this prototype."
+            title="Account security"
+            description="Your account uses password-based sign-in and a revocable session."
           >
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
               <p className="text-sm leading-6 text-slate-700">
-                Secure sign-in, profile management, and account security
-                controls will require a verified authentication service and
-                backend support. No password or profile data is collected or
-                stored by this page.
+                Your password is stored as a hash by the backend. Signing out
+                revokes the current session. Profile editing and password changes
+                are not available from this page yet.
               </p>
             </div>
           </SettingSection>

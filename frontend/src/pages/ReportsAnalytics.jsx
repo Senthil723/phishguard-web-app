@@ -15,40 +15,40 @@ import {
   XCircle,
 } from "lucide-react";
 import { fadeUp, staggerContainer } from "../animations";
-import { getScanAnalytics, getScans } from "../services/api";
+import { getScanAnalytics, getAllScans } from "../services/api";
 import {
   getScanStatusCategory,
   getScanStatusLabel,
 } from "../utils/scanStatus";
 
-const REPORT_LIMIT = 100;
+const REPORT_PAGE_SIZE = 20;
 const STATUS_CATEGORIES = [
   {
     key: "pending",
     label: "Pending",
     icon: Clock3,
-    color: "bg-amber-500",
+    fill: "#f59e0b",
     text: "text-amber-800",
   },
   {
     key: "completed",
     label: "Completed",
     icon: CheckCircle2,
-    color: "bg-cyan-600",
+    fill: "#0891b2",
     text: "text-cyan-800",
   },
   {
     key: "failed",
     label: "Failed",
     icon: XCircle,
-    color: "bg-red-600",
+    fill: "#dc2626",
     text: "text-red-800",
   },
   {
     key: "unknown",
     label: "Unknown",
     icon: HelpCircle,
-    color: "bg-slate-500",
+    fill: "#64748b",
     text: "text-slate-700",
   },
 ];
@@ -95,7 +95,7 @@ function downloadCsv(analytics, records, rangeLabel) {
     ["Generated at (UTC)", new Date().toISOString()],
     ["Selected UTC range", rangeLabel],
     ["Data source", "Backend database aggregates"],
-    ["Record detail limit", `Latest ${REPORT_LIMIT} records only`],
+    ["Record details", "All matching user records"],
     [],
     ["Summary metric", "Count"],
     ["Total submissions", analytics.total_scans],
@@ -110,7 +110,7 @@ function downloadCsv(analytics, records, rangeLabel) {
     ["Daily submissions (UTC)", "Count"],
     ...analytics.daily_submissions.map(({ date, count }) => [date, count]),
     [],
-    [`Latest matching record details (maximum ${REPORT_LIMIT})`],
+    ["Matching record details"],
     ["ID", "Submitted URL", "Backend status", "Created at (UTC)"],
     ...records.map((record) => {
       const createdAt = record.created_at ? new Date(record.created_at) : null;
@@ -202,6 +202,10 @@ function dateToDayNumber(value) {
   return Date.parse(`${value}T00:00:00Z`) / 86400000;
 }
 
+function dayNumberToDate(value) {
+  return new Date(value * 86400000).toISOString().slice(0, 10);
+}
+
 function ActivityChart({ analytics, dateFilter }) {
   const buckets = analytics?.daily_submissions || [];
   if (!buckets.length) {
@@ -216,110 +220,73 @@ function ActivityChart({ analytics, dateFilter }) {
     );
   }
 
-  const width = 960;
-  const height = 260;
-  const padding = { top: 20, right: 20, bottom: 48, left: 44 };
+  const startDay = dateToDayNumber(dateFilter.fromDate || buckets[0].date);
+  const endDay = dateToDayNumber(dateFilter.throughDate || buckets[buckets.length - 1].date);
+  const daySpan = endDay - startDay + 1;
+  const intervalDays = daySpan <= 31 ? 1 : daySpan <= 180 ? 7 : Math.ceil(daySpan / 30);
+  const intervals = Array.from({ length: Math.ceil(daySpan / intervalDays) }, (_, index) => {
+    const fromDay = startDay + index * intervalDays;
+    const throughDay = Math.min(endDay, fromDay + intervalDays - 1);
+    const count = buckets
+      .filter(({ date }) => {
+        const day = dateToDayNumber(date);
+        return day >= fromDay && day <= throughDay;
+      })
+      .reduce((sum, bucket) => sum + bucket.count, 0);
+    return {
+      from: dayNumberToDate(fromDay),
+      through: dayNumberToDate(throughDay),
+      count,
+    };
+  });
+  const width = Math.max(640, intervals.length * 30 + 80);
+  const height = 280;
+  const padding = { top: 20, right: 20, bottom: 50, left: 44 };
   const chartWidth = width - padding.left - padding.right;
   const chartHeight = height - padding.top - padding.bottom;
-  const firstDay =
-    dateFilter.fromDate || buckets[0].date;
-  const lastDay =
-    dateFilter.throughDate || buckets[buckets.length - 1].date;
-  const startDay = dateToDayNumber(firstDay);
-  const endDay = Math.max(startDay + 1, dateToDayNumber(lastDay));
-  const maxCount = Math.max(1, ...buckets.map((bucket) => bucket.count));
-  const slotWidth = chartWidth / Math.max(1, endDay - startDay + 1);
-  const barWidth = Math.max(1, Math.min(20, slotWidth * 0.72));
-  const labelIndexes = new Set(
-    buckets.map((_, index) =>
-      Math.round((index * (buckets.length - 1)) / Math.min(5, buckets.length - 1 || 1))
-    )
-  );
+  const maxCount = Math.max(1, ...intervals.map(({ count }) => count));
+  const slotWidth = chartWidth / intervals.length;
+  const barWidth = Math.min(24, slotWidth * 0.72);
+  const labelStep = Math.max(1, Math.ceil(intervals.length / 6));
 
   return (
     <div className="overflow-x-auto rounded-xl border border-slate-100 bg-white">
       <svg
         viewBox={`0 0 ${width} ${height}`}
         role="img"
-        aria-label={`Daily submissions in UTC. ${analytics.total_scans} total records in selected range.`}
+        aria-label={`Submission activity for ${dateFilter.label}: ${analytics.total_scans} total submissions, grouped into ${intervalDays}-day intervals.`}
         className="h-auto min-w-[640px] w-full"
       >
-        <line
-          x1={padding.left}
-          y1={padding.top + chartHeight}
-          x2={width - padding.right}
-          y2={padding.top + chartHeight}
-          stroke="#cbd5e1"
-        />
         {[0, 0.5, 1].map((fraction) => {
           const y = padding.top + chartHeight * (1 - fraction);
-          const value = Math.round(maxCount * fraction);
           return (
             <g key={fraction}>
-              <line
-                x1={padding.left}
-                y1={y}
-                x2={width - padding.right}
-                y2={y}
-                stroke="#e2e8f0"
-                strokeDasharray={fraction === 0 ? undefined : "4 4"}
-              />
-              <text
-                x={padding.left - 8}
-                y={y + 4}
-                textAnchor="end"
-                className="fill-slate-500 text-[11px]"
-              >
-                {value}
+              <line x1={padding.left} y1={y} x2={width - padding.right} y2={y} stroke="#e2e8f0" />
+              <text x={padding.left - 8} y={y + 4} textAnchor="end" className="fill-slate-500 text-[11px]">
+                {Math.round(maxCount * fraction)}
               </text>
             </g>
           );
         })}
-        {buckets.map((bucket) => {
-          const x =
-            padding.left +
-            ((dateToDayNumber(bucket.date) - startDay) / (endDay - startDay)) *
-              chartWidth -
-            barWidth / 2;
-          const barHeight = (bucket.count / maxCount) * chartHeight;
-          const y = padding.top + chartHeight - barHeight;
+        {intervals.map(({ from, through, count }, index) => {
+          const x = padding.left + index * slotWidth + (slotWidth - barWidth) / 2;
+          const barHeight = (count / maxCount) * chartHeight;
           return (
-            <g key={bucket.date}>
-              <rect
-                x={x}
-                y={y}
-                width={barWidth}
-                height={barHeight}
-                rx="3"
-                className="fill-blue-600"
-              >
-                <title>{`${bucket.date}: ${bucket.count} submissions`}</title>
+            <g key={from}>
+              <rect x={x} y={padding.top + chartHeight - barHeight} width={barWidth} height={barHeight} rx="3" fill="#2563eb">
+                <title>{`${from}${from === through ? "" : ` through ${through}`}: ${count} submissions`}</title>
               </rect>
+              {index % labelStep === 0 && (
+                <text x={x + barWidth / 2} y={height - 16} textAnchor="middle" className="fill-slate-600 text-[11px]">
+                  {from.slice(5)}
+                </text>
+              )}
             </g>
-          );
-        })}
-        {buckets.map((bucket, index) => {
-          if (!labelIndexes.has(index)) return null;
-          const x =
-            padding.left +
-            ((dateToDayNumber(bucket.date) - startDay) / (endDay - startDay)) *
-              chartWidth;
-          return (
-            <text
-              key={`${bucket.date}-label`}
-              x={x}
-              y={height - 16}
-              textAnchor="middle"
-              className="fill-slate-600 text-[11px]"
-            >
-              {bucket.date.slice(5)}
-            </text>
           );
         })}
       </svg>
       <p className="px-4 pb-3 text-xs text-slate-600">
-        Each bar is a UTC calendar day with saved submissions; unplotted days
-        had no timestamped submissions.
+        {intervalDays === 1 ? "Each bar shows one UTC day" : `Each bar shows up to ${intervalDays} UTC days`} in the selected range. Empty intervals have no submissions.
       </p>
     </div>
   );
@@ -327,40 +294,56 @@ function ActivityChart({ analytics, dateFilter }) {
 
 function StatusDistribution({ analytics }) {
   const total = analytics?.total_scans || 0;
+  const statuses = STATUS_CATEGORIES.map((category) => ({
+    ...category,
+    count: analytics?.[`${category.key === "completed" ? "analyzed" : category.key}_scans`] || 0,
+  }));
+  const { slices } = statuses
+    .filter(({ count }) => count > 0)
+    .reduce(({ slices: previousSlices, endCount }, status) => {
+      const startAngle = (endCount / total) * Math.PI * 2 - Math.PI / 2;
+      const nextCount = endCount + status.count;
+      const endAngle = (nextCount / total) * Math.PI * 2 - Math.PI / 2;
+      const point = (angle) => [120 + 100 * Math.cos(angle), 120 + 100 * Math.sin(angle)];
+      const [startX, startY] = point(startAngle);
+      const [endX, endY] = point(endAngle);
+      const path = `M 120 120 L ${startX} ${startY} A 100 100 0 ${endAngle - startAngle > Math.PI ? 1 : 0} 1 ${endX} ${endY} Z`;
+      return {
+        endCount: nextCount,
+        slices: [...previousSlices, { ...status, path }],
+      };
+    }, { slices: [], endCount: 0 });
 
   return (
     <div className="space-y-4">
-      {STATUS_CATEGORIES.map(({ key, label, icon: Icon, color, text }) => {
-        const count = analytics?.[`${key === "completed" ? "analyzed" : key}_scans`] || 0;
-        const percentage = total ? (count / total) * 100 : 0;
-
-        return (
-          <div key={key}>
-            <div className="mb-1.5 flex items-center justify-between gap-3">
-              <span className={`inline-flex items-center gap-2 text-sm font-medium ${text}`}>
-                <Icon aria-hidden="true" size={16} />
-                {label}
-              </span>
-              <span className="text-sm font-semibold text-slate-800">
-                {count} <span className="font-normal text-slate-500">({percentage.toFixed(1)}%)</span>
-              </span>
-            </div>
-            <div
-              className="h-2.5 overflow-hidden rounded-full bg-slate-100"
-              role="progressbar"
-              aria-label={`${label} status distribution`}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={Number(percentage.toFixed(1))}
-            >
-              <div
-                className={`h-full rounded-full ${color}`}
-                style={{ width: `${percentage}%` }}
-              />
-            </div>
-          </div>
-        );
-      })}
+      {total ? (
+        <svg viewBox="0 0 240 240" role="img" aria-label={`Pie chart of ${total} processing statuses.`} className="mx-auto h-auto w-full max-w-[240px]">
+          {slices.length === 1 ? (
+            <circle cx="120" cy="120" r="100" fill={slices[0].fill}>
+              <title>{`${slices[0].label}: ${slices[0].count} (100%)`}</title>
+            </circle>
+          ) : (
+            slices.map(({ key, label, count, fill, path }) => (
+              <path key={key} d={path} fill={fill} stroke="white" strokeWidth="2">
+                <title>{`${label}: ${count} (${((count / total) * 100).toFixed(1)}%)`}</title>
+              </path>
+            ))
+          )}
+        </svg>
+      ) : (
+        <p className="rounded-xl bg-slate-50 py-10 text-center text-sm text-slate-600">No processing statuses in this range.</p>
+      )}
+      <ul aria-label="Processing status counts" className="space-y-2">
+        {statuses.map(({ key, label, icon: Icon, fill, text, count }) => (
+          <li key={key} className="flex items-center gap-2 text-sm">
+            <span className="h-3 w-3 shrink-0 rounded-sm" style={{ backgroundColor: fill }} aria-hidden="true" />
+            <span className={`inline-flex items-center gap-1.5 font-medium ${text}`}>
+              <Icon aria-hidden="true" size={15} />{label}
+            </span>
+            <span className="ml-auto text-slate-700">{count} ({total ? ((count / total) * 100).toFixed(1) : "0.0"}%)</span>
+          </li>
+        ))}
+      </ul>
 
       <div className="border-t border-slate-100 pt-4">
         <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-600">
@@ -393,6 +376,7 @@ export default function ReportsAnalytics() {
   const [customThrough, setCustomThrough] = useState("");
   const [analytics, setAnalytics] = useState(null);
   const [records, setRecords] = useState([]);
+  const [recordsPage, setRecordsPage] = useState(1);
   const [analyticsLoading, setAnalyticsLoading] = useState(true);
   const [recordsLoading, setRecordsLoading] = useState(true);
   const [analyticsError, setAnalyticsError] = useState("");
@@ -467,14 +451,14 @@ export default function ReportsAnalytics() {
     setRecordsLoading(true);
     setRecordsError("");
     try {
-      const response = await getScans(REPORT_LIMIT);
+      const response = await getAllScans();
       if (!Array.isArray(response) || !response.every(isValidRecord)) {
         throw new Error("The backend returned an unexpected scan list.");
       }
       setRecords(response);
     } catch (requestError) {
       console.error("Failed to load report records:", requestError);
-      setRecordsError("Latest scan record details are unavailable. Try refreshing.");
+      setRecordsError("Scan record details are unavailable. Try refreshing.");
     } finally {
       setRecordsLoading(false);
     }
@@ -502,44 +486,12 @@ export default function ReportsAnalytics() {
       );
     });
   }, [records, dateFilter]);
-
-  const summaryCards = [
-    {
-      label: "Total submissions",
-      value: analytics?.total_scans,
-      description: "Matching database records",
-      icon: FileSpreadsheet,
-      color: "bg-blue-50 text-blue-700",
-    },
-    {
-      label: "Completed analyses",
-      value: analytics?.analyzed_scans,
-      description: "Completed processing status, not a verdict",
-      icon: CheckCircle2,
-      color: "bg-cyan-50 text-cyan-700",
-    },
-    {
-      label: "Pending analyses",
-      value: analytics?.pending_scans,
-      description: "Awaiting backend processing",
-      icon: Clock3,
-      color: "bg-amber-50 text-amber-700",
-    },
-    {
-      label: "Failed analyses",
-      value: analytics?.failed_scans,
-      description: "Marked failed by backend status",
-      icon: AlertTriangle,
-      color: "bg-red-50 text-red-700",
-    },
-    {
-      label: "Unknown statuses",
-      value: analytics?.unknown_scans,
-      description: "Unrecognized processing statuses",
-      icon: ShieldAlert,
-      color: "bg-slate-100 text-slate-700",
-    },
-  ];
+  const recordsPageCount = Math.max(1, Math.ceil(filteredRecords.length / REPORT_PAGE_SIZE));
+  const currentRecordsPage = Math.min(recordsPage, recordsPageCount);
+  const visibleRecords = filteredRecords.slice(
+    (currentRecordsPage - 1) * REPORT_PAGE_SIZE,
+    currentRecordsPage * REPORT_PAGE_SIZE
+  );
 
   const busy = analyticsLoading || recordsLoading;
 
@@ -555,6 +507,7 @@ export default function ReportsAnalytics() {
   function changeRange(value) {
     setToday(utcDateKey(new Date()));
     setRange(value);
+    setRecordsPage(1);
   }
 
   const pageVariants = shouldReduceMotion ? undefined : staggerContainer;
@@ -581,7 +534,7 @@ export default function ReportsAnalytics() {
             Reports &amp; Analytics
           </h1>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-            Database-wide URL submission and backend processing statistics for the selected UTC date range.
+            Your URL submissions and backend processing statistics for the selected UTC date range.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -635,7 +588,7 @@ export default function ReportsAnalytics() {
               <input
                 type="date"
                 value={customFrom}
-                onChange={(event) => setCustomFrom(event.target.value)}
+                onChange={(event) => { setCustomFrom(event.target.value); setRecordsPage(1); }}
                 className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-blue-400 focus:outline-none focus:ring-4 focus:ring-blue-500/10"
               />
             </label>
@@ -644,7 +597,7 @@ export default function ReportsAnalytics() {
               <input
                 type="date"
                 value={customThrough}
-                onChange={(event) => setCustomThrough(event.target.value)}
+                onChange={(event) => { setCustomThrough(event.target.value); setRecordsPage(1); }}
                 className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-blue-400 focus:outline-none focus:ring-4 focus:ring-blue-500/10"
               />
             </label>
@@ -668,26 +621,6 @@ export default function ReportsAnalytics() {
         </div>
       )}
 
-      <motion.section
-        variants={itemVariants}
-        className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-5"
-        aria-label="Statistics for the selected date range"
-        aria-busy={analyticsLoading}
-      >
-        {summaryCards.map(({ label, value, description, icon: Icon, color }) => (
-          <article key={label} className="flex min-h-40 flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <span className={`flex h-10 w-10 items-center justify-center rounded-xl ${color}`}>
-              <Icon aria-hidden="true" size={20} />
-            </span>
-            <p className="mt-4 text-sm font-medium text-slate-600">{label}</p>
-            <p className="mt-1 text-3xl font-bold text-slate-950" aria-live="polite">
-              {analyticsLoading ? "…" : analyticsError ? "—" : value}
-            </p>
-            <p className="mt-2 text-xs leading-5 text-slate-500">{description}</p>
-          </article>
-        ))}
-      </motion.section>
-
       <div className="mb-6 grid gap-5 xl:grid-cols-[1.4fr_1fr]">
         <motion.section
           variants={itemVariants}
@@ -696,9 +629,9 @@ export default function ReportsAnalytics() {
           aria-busy={analyticsLoading}
         >
           <div className="mb-4">
-            <h2 id="activity-title" className="text-lg font-semibold text-slate-900">Daily submission activity</h2>
+            <h2 id="activity-title" className="text-lg font-semibold text-slate-900">Submission activity by date range</h2>
             <p className="mt-1 text-sm text-slate-600">
-              Actual saved URL submissions by UTC calendar day.
+              Saved URL submissions grouped across the selected UTC date range.
             </p>
           </div>
           {analyticsLoading ? (
@@ -743,9 +676,9 @@ export default function ReportsAnalytics() {
       >
         <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
           <div>
-            <h2 id="records-title" className="text-lg font-semibold text-slate-900">Latest saved record details</h2>
+            <h2 id="records-title" className="text-lg font-semibold text-slate-900">Saved record details</h2>
             <p className="mt-1 text-sm text-slate-600">
-              {filteredRecords.length} matching records shown from the latest {REPORT_LIMIT} fetched.
+              {filteredRecords.length} matching records. Showing page {currentRecordsPage} of {recordsPageCount}.
             </p>
           </div>
           <span className="w-fit rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-800">
@@ -756,9 +689,7 @@ export default function ReportsAnalytics() {
         <div className="flex items-start gap-3 border-b border-blue-100 bg-blue-50/70 p-4 text-sm leading-6 text-blue-950">
           <Info aria-hidden="true" size={19} className="mt-0.5 shrink-0 text-blue-700" />
           <p>
-            Aggregate cards and charts cover the entire database for this range.
-            The record-detail list is limited to the latest {REPORT_LIMIT} rows;
-            the CSV includes those matching details plus complete backend aggregates.
+            The charts and CSV cover all of your matching records for this range.
           </p>
         </div>
 
@@ -775,12 +706,12 @@ export default function ReportsAnalytics() {
         {recordsLoading ? (
           <div role="status" className="px-6 py-12 text-center text-sm text-slate-600">
             <RefreshCw aria-hidden="true" size={22} className="mx-auto animate-spin text-blue-600 motion-reduce:animate-none" />
-            <p className="mt-3">Loading recent record details…</p>
+            <p className="mt-3">Loading record details…</p>
           </div>
         ) : !recordsError && filteredRecords.length ? (
           <>
             <div className="divide-y divide-slate-100 md:hidden">
-              {filteredRecords.map((record) => (
+              {visibleRecords.map((record) => (
                 <article key={record.id} className="space-y-3 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <span className="shrink-0 rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">#{record.id}</span>
@@ -793,7 +724,7 @@ export default function ReportsAnalytics() {
             </div>
             <div className="hidden overflow-x-auto md:block">
               <table className="w-full min-w-[680px] text-left text-sm">
-                <caption className="sr-only">Latest matching saved URL submission records</caption>
+                <caption className="sr-only">Matching saved URL submission records</caption>
                 <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-600">
                   <tr>
                     <th scope="col" className="px-4 py-3">ID</th>
@@ -803,7 +734,7 @@ export default function ReportsAnalytics() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredRecords.map((record) => (
+                  {visibleRecords.map((record) => (
                     <tr key={record.id} className="hover:bg-slate-50">
                       <td className="whitespace-nowrap px-4 py-3 text-slate-600">{record.id}</td>
                       <td className="max-w-[360px] break-all px-4 py-3 text-slate-900">{record.url}</td>
@@ -814,18 +745,25 @@ export default function ReportsAnalytics() {
                 </tbody>
               </table>
             </div>
+            {recordsPageCount > 1 && (
+              <nav aria-label="Report record pages" className="flex items-center justify-between border-t border-slate-100 px-4 py-3 text-sm">
+                <button type="button" onClick={() => setRecordsPage(currentRecordsPage - 1)} disabled={currentRecordsPage === 1} className="rounded-lg px-3 py-2 font-medium text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:text-slate-400">Previous</button>
+                <span className="text-slate-600">Page {currentRecordsPage} of {recordsPageCount}</span>
+                <button type="button" onClick={() => setRecordsPage(currentRecordsPage + 1)} disabled={currentRecordsPage === recordsPageCount} className="rounded-lg px-3 py-2 font-medium text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:text-slate-400">Next</button>
+              </nav>
+            )}
           </>
         ) : !recordsError && (
           <div className="px-6 py-12 text-center">
             <FileSpreadsheet aria-hidden="true" size={24} className="mx-auto text-slate-400" />
             <h3 className="mt-3 font-semibold text-slate-900">
               {analytics?.total_scans
-                ? "No matching records in the latest loaded rows"
+                ? "No matching records in this range"
                 : "No submissions in this date range"}
             </h3>
             <p className="mx-auto mt-1 max-w-xl text-sm leading-6 text-slate-600">
               {analytics?.total_scans
-                ? "The database aggregates above include matching older records; only the latest 100 record details are available here."
+                ? "Try a wider date range to see matching records."
                 : "No saved URL submissions were returned for this UTC date range."}
             </p>
           </div>
@@ -835,8 +773,8 @@ export default function ReportsAnalytics() {
       <motion.p variants={itemVariants} className="flex items-start gap-2 text-xs leading-5 text-slate-600">
         <ShieldAlert aria-hidden="true" size={15} className="mt-0.5 shrink-0 text-amber-700" />
         These analytics represent URL submissions and backend processing statuses.
-        Phishing classification statistics will become available only after a genuine
-        detection engine is integrated. Completed status is not a safe or malicious verdict.
+        The status chart shows processing states, not model predictions.
+        Completed status is not a safe or malicious verdict.
       </motion.p>
     </motion.main>
   );

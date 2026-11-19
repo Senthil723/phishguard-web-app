@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     # SQLite makes first-time local setup simple. Set DATABASE_URL in .env for MySQL.
     database_url: str = "sqlite:///./phishguard.db"
     frontend_origins: str = "http://localhost:5173"
+    session_cookie_secure: bool = False
 
     @property
     def cors_origins(self) -> list[str]:

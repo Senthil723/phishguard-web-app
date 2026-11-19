@@ -130,14 +130,15 @@ function getRiskAppearance(riskLevel) {
 }
 
 function getRetrievalError(error) {
-  if (error instanceof ApiError && error.kind === "not-found") {
+  if (error instanceof ApiError && error.status === 401) {
     return {
-      title: "Scan record not found",
+      title: "Login session expired",
       message:
-        "This saved record could not be found. It may have been removed or the ID may be incorrect.",
+        "Your PhishGuard session is no longer valid. Please sign in again to view your saved scan results.",
       canRetry: false,
     };
   }
+
 
   if (error instanceof ApiError && error.kind === "invalid-id") {
     return {
@@ -333,7 +334,7 @@ function ScanResults() {
 
           <div>
             <h2 className="font-semibold text-blue-900">
-              Experimental ML model connected
+              Experimental ML-based URL assessment
             </h2>
             <p className="mt-1 text-sm leading-6 text-slate-700">
               PhishGuard uses an experimental Random Forest model to assess
@@ -425,6 +426,16 @@ function ScanResults() {
                   </p>
 
                   <div className="mt-4 flex flex-wrap gap-3">
+                    {error.title === "Login session expired" && (
+                      <Link
+                        to="/"
+                        state={{ from: location }}
+                        className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+                      >
+                        Return to Login
+                        <ArrowRight size={16} aria-hidden="true" />
+                      </Link>
+                    )}
                     {error.canRetry && (
                       <button
                         type="button"
