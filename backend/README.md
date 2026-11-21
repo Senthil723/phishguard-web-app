@@ -21,6 +21,12 @@ SQLite is the default. Copy `.env.example` to `.env`. Startup creates new tables
 
 For a fresh installation with no SQLite data to preserve, set `DATABASE_URL` directly to the MySQL URL; startup creates the tables.
 
+## Password reset email
+
+Set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, and `SMTP_FROM_EMAIL` in `backend/.env`. Use `SMTP_PORT=587` with STARTTLS (the default), or `SMTP_PORT=465` and `SMTP_USE_SSL=true` for implicit TLS. Set `PASSWORD_RESET_FRONTEND_URL` to the public frontend origin, such as `https://your-site.example`. Restart the backend after changing `.env`. If SMTP is not configured, the reset request route returns 503.
+
+The login page links to `/forgot-password`. An account owner receives a 30-minute, single-use reset link by email. The request response is the same whether or not an account exists, and repeat emails for an account are limited to one every five minutes. A successful reset revokes that account's existing sessions. Keep SMTP credentials only in `.env`, never in source control.
+
 Run tests with `.\.venv\Scripts\python.exe -m unittest discover -s tests -v` from this directory. Run `python -m scripts.evaluate_release_model` to regenerate the held-out model report.
 
 The model uses URL text features only. It does not open submitted links or inspect their content. Its score is experimental and must not be treated as proof of safety.

@@ -27,7 +27,6 @@ import {
   createScan,
 } from "../services/api";
 
-import { loadPreferences } from "../utils/preferences";
 
 // =============================================
 // URL VALIDATION
@@ -176,9 +175,7 @@ export default function URLScanner() {
 
   const shouldReduceMotion = useReducedMotion();
 
-  const [defaultProtocol] = useState(
-    () => loadPreferences().preferences.defaultProtocol
-  );
+  const defaultProtocol = "https";
 
   const [url, setUrl] = useState("");
   const [message, setMessage] = useState("");

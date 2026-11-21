@@ -153,6 +153,20 @@ export async function logoutUser() {
   });
 }
 
+export async function requestPasswordReset(email) {
+  return apiRequest("/auth/password-reset/request", {
+    method: "POST",
+    body: { email },
+  });
+}
+
+export async function confirmPasswordReset(token, password) {
+  return apiRequest("/auth/password-reset/confirm", {
+    method: "POST",
+    body: { token, password },
+  });
+}
+
 
 // --------------------------------------------------
 // CREATE SCAN AND RUN ML PREDICTION

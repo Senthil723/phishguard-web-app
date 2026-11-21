@@ -8,6 +8,7 @@ import {
 
 import Login from "./Login.jsx";
 import Signup from "./pages/Signup.jsx";
+import { ForgotPassword, ResetPassword } from "./pages/PasswordRecovery.jsx";
 
 import AppLayout from "./components/AppLayout.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
@@ -17,7 +18,6 @@ import URLScanner from "./pages/URLScanner.jsx";
 import ScanResults from "./pages/ScanResults.jsx";
 import ScanHistory from "./pages/ScanHistory.jsx";
 import ReportsAnalytics from "./pages/ReportsAnalytics.jsx";
-import Settings from "./pages/Settings.jsx";
 
 function App() {
   return (
@@ -27,6 +27,8 @@ function App() {
         {/* Public Login page */}
         <Route path="/" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
 
         {/* All private pages require authentication */}
         <Route element={<ProtectedRoute />}>
@@ -62,11 +64,6 @@ function App() {
             <Route
               path="/reports"
               element={<ReportsAnalytics />}
-            />
-
-            <Route
-              path="/settings"
-              element={<Settings />}
             />
 
           </Route>

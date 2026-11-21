@@ -1,6 +1,10 @@
 
+from datetime import datetime, timedelta, timezone
+from secrets import token_urlsafe
+
 from fastapi import (
     APIRouter,
+    BackgroundTasks,
     Cookie,
     Depends,
     HTTPException,
@@ -8,16 +12,26 @@ from fastapi import (
     status,
 )
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.security import hash_password, verify_password
 from app.core.csrf import validate_request_origin
 from app.core.config import get_settings
+from app.core.session_security import hash_session_token
 from app.db.session import get_db
+from app.models.password_reset import PasswordResetToken
+from app.models.session import UserSession
 from app.models.user import User
-from app.schemas.user import UserRead, UserRegister, UserLogin
+from app.schemas.user import (
+    PasswordResetConfirm,
+    PasswordResetRequest,
+    UserRead,
+    UserRegister,
+    UserLogin,
+)
+from app.services.password_reset_email import send_password_reset_email_safely
 from app.services.auth_sessions import (
     create_user_session,
     get_user_from_session,
@@ -25,6 +39,96 @@ from app.services.auth_sessions import (
 )
 
 router = APIRouter()
+
+
+RESET_RESPONSE = {"message": "If that email is registered, a reset link will be sent."}
+
+
+@router.post("/password-reset/request")
+def request_password_reset(
+    payload: PasswordResetRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    _: None = Depends(validate_request_origin),
+) -> dict[str, str]:
+    settings = get_settings()
+    if not settings.smtp_configured:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Password reset email is not configured on the server.",
+        )
+
+    user = db.scalar(select(User).where(User.email == payload.email))
+    if user is None or not user.is_active:
+        return RESET_RESPONSE
+
+    now = datetime.now(timezone.utc)
+    latest = db.scalar(
+        select(PasswordResetToken.created_at)
+        .where(PasswordResetToken.user_id == user.id)
+        .order_by(PasswordResetToken.created_at.desc())
+        .limit(1)
+    )
+    if latest is not None:
+        if latest.tzinfo is None:
+            latest = latest.replace(tzinfo=timezone.utc)
+        if now - latest < timedelta(minutes=5):
+            return RESET_RESPONSE
+
+    raw_token = token_urlsafe(32)
+    db.execute(
+        update(PasswordResetToken)
+        .where(PasswordResetToken.user_id == user.id, PasswordResetToken.used_at.is_(None))
+        .values(used_at=now)
+    )
+    db.add(PasswordResetToken(
+        user_id=user.id,
+        token_hash=hash_session_token(raw_token),
+        expires_at=now + timedelta(minutes=30),
+    ))
+    db.commit()
+    background_tasks.add_task(send_password_reset_email_safely, user.email, raw_token, settings)
+    return RESET_RESPONSE
+
+
+@router.post("/password-reset/confirm")
+def confirm_password_reset(
+    payload: PasswordResetConfirm,
+    db: Session = Depends(get_db),
+    _: None = Depends(validate_request_origin),
+) -> dict[str, str]:
+    now = datetime.now(timezone.utc)
+    reset = db.scalar(
+        select(PasswordResetToken)
+        .where(PasswordResetToken.token_hash == hash_session_token(payload.token))
+        .with_for_update()
+    )
+    if reset is None or reset.used_at is not None:
+        raise HTTPException(status_code=400, detail="Reset link is invalid or expired.")
+
+    expires_at = reset.expires_at
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if expires_at <= now:
+        raise HTTPException(status_code=400, detail="Reset link is invalid or expired.")
+
+    user = db.get(User, reset.user_id)
+    if user is None or not user.is_active:
+        raise HTTPException(status_code=400, detail="Reset link is invalid or expired.")
+
+    user.hashed_password = hash_password(payload.password)
+    db.execute(
+        update(PasswordResetToken)
+        .where(PasswordResetToken.user_id == user.id, PasswordResetToken.used_at.is_(None))
+        .values(used_at=now)
+    )
+    db.execute(
+        update(UserSession)
+        .where(UserSession.user_id == user.id, UserSession.revoked_at.is_(None))
+        .values(revoked_at=now)
+    )
+    db.commit()
+    return {"message": "Password updated. Sign in with your new password."}
 
 
 # --------------------------------------------------

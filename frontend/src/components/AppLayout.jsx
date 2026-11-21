@@ -1,7 +1,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 
 import {
   BarChart3,
@@ -11,7 +11,8 @@ import {
   LayoutDashboard,
   Menu,
   Search,
-  Settings,
+  Moon,
+  Sun,
   ShieldCheck,
   X,
   UserRound,
@@ -31,6 +32,14 @@ const navigation = [
 export default function AppLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [theme, setTheme] = useState(() => {
+    try {
+      return window.localStorage.getItem("phishguard-theme") === "dark" ? "dark" : "light";
+    } catch {
+      return "light";
+    }
+  });
+  const shouldReduceMotion = useReducedMotion();
 
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [logoutError, setLogoutError] = useState("");
@@ -40,6 +49,14 @@ export default function AppLayout() {
   const menuWasOpenRef = useRef(false);
 
   const navigate = useNavigate();
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem("phishguard-theme", theme);
+    } catch {
+      // The selected theme still works for this visit when storage is unavailable.
+    }
+  }, [theme]);
 
   // ---------------------------------------
   // REAL LOGOUT USING FASTAPI
@@ -158,7 +175,10 @@ export default function AppLayout() {
     ));
 
   return (
-    <div className="min-h-screen bg-[#f6f8fc] text-slate-900">
+    <div
+      data-theme={theme}
+      className={`min-h-screen ${theme === "dark" ? "bg-slate-950 text-slate-100" : "bg-[#f6f8fc] text-slate-900"}`}
+    >
 
       {/* =====================================
           TOP NAVIGATION BAR
@@ -211,6 +231,27 @@ export default function AppLayout() {
 
           <div className="ml-auto flex shrink-0 items-center gap-2">
 
+            <button
+              type="button"
+              onClick={() => setTheme((current) => current === "dark" ? "light" : "dark")}
+              aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+              aria-pressed={theme === "dark"}
+              title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+              className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-blue-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            >
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.span
+                  key={theme}
+                  initial={shouldReduceMotion ? false : { rotate: -90, scale: 0.5, opacity: 0 }}
+                  animate={{ rotate: 0, scale: 1, opacity: 1 }}
+                  exit={shouldReduceMotion ? undefined : { rotate: 90, scale: 0.5, opacity: 0 }}
+                  transition={{ duration: shouldReduceMotion ? 0 : 0.22 }}
+                >
+                  {theme === "dark" ? <Moon size={20} aria-hidden="true" /> : <Sun size={20} aria-hidden="true" />}
+                </motion.span>
+              </AnimatePresence>
+            </button>
+
             {/* =====================================
                 ACCOUNT PROFILE MENU
             ===================================== */}
@@ -258,20 +299,6 @@ export default function AppLayout() {
                     className="absolute right-0 top-12 w-56 rounded-xl border border-slate-200 bg-white p-2 shadow-xl shadow-slate-900/10"
                   >
 
-                    {/* Settings */}
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setProfileOpen(false);
-                        navigate("/settings");
-                      }}
-                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50"
-                    >
-                      <Settings size={16} />
-                      Settings
-                    </button>
-
                     {/* REAL SIGN OUT BUTTON */}
 
                     <button
@@ -297,10 +324,6 @@ export default function AppLayout() {
                         {logoutError}
                       </p>
                     )}
-
-                    <p className="px-3 pb-1 pt-2 text-[10px] leading-4 text-slate-400">
-                      Account sessions are managed securely by the PhishGuard backend.
-                    </p>
 
                   </motion.div>
                 )}

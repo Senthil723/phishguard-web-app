@@ -65,6 +65,7 @@ def migrate_mysql_datetime_precision(db_engine: Engine = engine) -> None:
         "users": ("created_at",),
         "user_sessions": ("created_at", "expires_at", "revoked_at"),
         "scans": ("created_at",),
+        "password_reset_tokens": ("created_at", "expires_at", "used_at"),
     }
     with db_engine.begin() as connection:
         inspector = inspect(connection)

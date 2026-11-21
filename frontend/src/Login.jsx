@@ -99,18 +99,6 @@ function Login() {
     }
   }
 
-  // ---------------------------------------
-  // FEATURES NOT YET IMPLEMENTED
-  // ---------------------------------------
-
-  function explainPrototype(event, feature) {
-    event.preventDefault();
-
-    setMessage(
-      `${feature} is not available yet. This feature will be added in a later step.`
-    );
-  }
-
   return (
     <main className="min-h-screen bg-white text-slate-900">
       <div className="grid min-h-screen lg:grid-cols-[1.02fr_0.98fr]">
@@ -417,15 +405,12 @@ function Login() {
                     Password
                   </label>
 
-                  <button
-                    type="button"
-                    onClick={(event) =>
-                      explainPrototype(event, "Password reset")
-                    }
+                  <Link
+                    to="/forgot-password"
                     className="text-xs font-semibold text-blue-700 transition hover:text-blue-800 hover:underline"
                   >
                     Forgot password?
-                  </button>
+                  </Link>
                 </div>
 
                 <div className="group relative">

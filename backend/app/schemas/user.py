@@ -58,3 +58,20 @@ class UserLogin(BaseModel):
     )
 
     remember_me: bool = False
+
+
+class PasswordResetRequest(BaseModel):
+    email: str = Field(min_length=5, max_length=255)
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, value: str) -> str:
+        value = value.strip().lower()
+        if "@" not in value or "." not in value.split("@")[-1]:
+            raise ValueError("Enter a valid email address.")
+        return value
+
+
+class PasswordResetConfirm(BaseModel):
+    token: str = Field(min_length=20, max_length=128)
+    password: str = Field(min_length=12, max_length=128)

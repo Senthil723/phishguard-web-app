@@ -368,7 +368,7 @@ export default function ScanHistory() {
     >
       <motion.header
         variants={itemVariants}
-        className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end"
+        className="mb-6 flex flex-col justify-between gap-4 lg:flex-row lg:items-end"
       >
         <div>
           <div className="mb-3 inline-flex items-center gap-2 text-sm font-semibold text-blue-700">
@@ -387,12 +387,12 @@ export default function ScanHistory() {
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="grid grid-cols-2 gap-2 lg:flex lg:shrink-0 lg:flex-nowrap lg:items-center">
           <button
             type="button"
             onClick={refreshHistory}
             disabled={loading}
-            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
+            className="inline-flex min-w-0 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
           >
             <RefreshCw
               aria-hidden="true"
@@ -405,7 +405,7 @@ export default function ScanHistory() {
             type="button"
             onClick={() => downloadCsv(filtered)}
             disabled={!filtered.length || loading}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-slate-300 motion-reduce:transition-none"
+            className="inline-flex min-w-0 items-center justify-center gap-2 rounded-xl bg-blue-600 px-3 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-slate-300 motion-reduce:transition-none"
           >
             <Download aria-hidden="true" size={17} />
             Export filtered records ({filtered.length})

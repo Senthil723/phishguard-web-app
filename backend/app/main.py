@@ -16,6 +16,7 @@ from app.db.session import engine
 from app.models import scan  # noqa: F401
 from app.models import user
 from app.models import session
+from app.models import password_reset  # noqa: F401
 
 
 def initialize_database() -> None:

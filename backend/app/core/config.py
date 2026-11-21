@@ -16,6 +16,21 @@ class Settings(BaseSettings):
     mysql_database_url: str | None = None
     frontend_origins: str = "http://localhost:5173"
     session_cookie_secure: bool = False
+    password_reset_frontend_url: str = "http://localhost:5173"
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_from_email: str = ""
+    smtp_use_ssl: bool = False
+
+    @property
+    def smtp_configured(self) -> bool:
+        return bool(
+            self.smtp_host
+            and self.smtp_from_email
+            and (not self.smtp_username or self.smtp_password)
+        )
 
     @property
     def cors_origins(self) -> list[str]:

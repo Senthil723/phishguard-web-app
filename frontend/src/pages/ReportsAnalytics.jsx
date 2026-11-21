@@ -222,7 +222,7 @@ function ActivityChart({ analytics, dateFilter }) {
   const startDay = dateToDayNumber(dateFilter.fromDate || buckets[0].date);
   const endDay = dateToDayNumber(dateFilter.throughDate || buckets[buckets.length - 1].date);
   const daySpan = endDay - startDay + 1;
-  const intervalDays = daySpan <= 31 ? 1 : daySpan <= 180 ? 7 : Math.ceil(daySpan / 30);
+  const intervalDays = Math.max(1, Math.ceil(daySpan / 6));
   const intervals = Array.from({ length: Math.ceil(daySpan / intervalDays) }, (_, index) => {
     const fromDay = startDay + index * intervalDays;
     const throughDay = Math.min(endDay, fromDay + intervalDays - 1);
@@ -237,8 +237,8 @@ function ActivityChart({ analytics, dateFilter }) {
       through: dayNumberToDate(throughDay),
       count,
     };
-  });
-  const width = Math.max(640, intervals.length * 30 + 80);
+  }).reverse();
+  const width = 560;
   const height = 280;
   const padding = { top: 20, right: 20, bottom: 50, left: 44 };
   const chartWidth = width - padding.left - padding.right;
@@ -246,15 +246,13 @@ function ActivityChart({ analytics, dateFilter }) {
   const maxCount = Math.max(1, ...intervals.map(({ count }) => count));
   const slotWidth = chartWidth / intervals.length;
   const barWidth = Math.min(24, slotWidth * 0.72);
-  const labelStep = Math.max(1, Math.ceil(intervals.length / 6));
-
   return (
-    <div className="overflow-x-auto rounded-xl border border-slate-100 bg-white">
+    <div className="rounded-xl border border-slate-100 bg-white">
       <svg
         viewBox={`0 0 ${width} ${height}`}
         role="img"
-        aria-label={`Submission activity for ${dateFilter.label}: ${analytics.total_scans} total submissions, grouped into ${intervalDays}-day intervals.`}
-        className="h-auto min-w-[640px] w-full"
+        aria-label={`Submission activity for ${dateFilter.label}: ${analytics.total_scans} total submissions, grouped into ${intervalDays}-day intervals, newest first.`}
+        className="h-auto w-full"
       >
         {[0, 0.5, 1].map((fraction) => {
           const y = padding.top + chartHeight * (1 - fraction);
@@ -275,17 +273,15 @@ function ActivityChart({ analytics, dateFilter }) {
               <rect x={x} y={padding.top + chartHeight - barHeight} width={barWidth} height={barHeight} rx="3" fill="#2563eb">
                 <title>{`${from}${from === through ? "" : ` through ${through}`}: ${count} submissions`}</title>
               </rect>
-              {index % labelStep === 0 && (
-                <text x={x + barWidth / 2} y={height - 16} textAnchor="middle" className="fill-slate-600 text-[11px]">
-                  {from.slice(5)}
-                </text>
-              )}
+              <text x={x + barWidth / 2} y={height - 16} textAnchor="middle" className="fill-slate-600 text-[11px]">
+                {through.slice(5)}
+              </text>
             </g>
           );
         })}
       </svg>
       <p className="px-4 pb-3 text-xs text-slate-600">
-        {intervalDays === 1 ? "Each bar shows one UTC day" : `Each bar shows up to ${intervalDays} UTC days`} in the selected range. Empty intervals have no submissions.
+        {intervalDays === 1 ? "Each bar shows one UTC day" : `Each bar shows up to ${intervalDays} UTC days`} in the selected range, newest first. Empty intervals have no submissions.
       </p>
     </div>
   );
