@@ -13,7 +13,6 @@ import {
   LockKeyhole,
   Mail,
   ScanSearch,
-  ShieldAlert,
   ShieldCheck,
 } from "lucide-react";
 
@@ -318,22 +317,7 @@ function Login() {
                 </span>
               </h1>
 
-              <p className="mx-auto mt-5 max-w-md text-sm leading-7 text-slate-300/75">
-                Investigate suspicious web addresses, review scan records
-                and build safer browsing habits with PhishGuard.
-              </p>
             </motion.div>
-          </div>
-
-          {/* Left panel footer */}
-
-          <div className="relative z-10 flex items-center justify-between border-t border-white/10 pt-5 text-xs text-slate-400">
-            <span>Built for safer browsing awareness</span>
-
-            <span className="inline-flex items-center gap-2">
-              <span className="h-1.5 w-1.5 rounded-full bg-amber-300" />
-              Prototype environment
-            </span>
           </div>
         </section>
 
@@ -371,11 +355,6 @@ function Login() {
             {/* Login heading */}
 
             <div className="mb-8">
-              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700">
-                <ShieldCheck size={14} />
-                Your security starts here
-              </div>
-
               <h2 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
                 Welcome back
               </h2>
@@ -580,29 +559,6 @@ function Login() {
   </Link>
 </p>
 
-
-            {/* Development notice */}
-
-            <div className="mt-8 flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
-
-              <ShieldAlert
-                size={19}
-                className="mt-0.5 shrink-0 text-blue-600"
-              />
-
-              <p className="text-xs leading-5 text-slate-500">
-                <span className="font-semibold text-slate-700">
-                  Development notice.
-                </span>{" "}
-                Login uses the local PhishGuard authentication backend.
-                Account creation and password recovery screens are not
-                yet connected. Use a test account during development.
-              </p>
-            </div>
-
-            <p className="mt-8 text-center text-xs text-slate-400">
-              © 2026 PhishGuard · Web security awareness
-            </p>
 
           </motion.div>
         </section>

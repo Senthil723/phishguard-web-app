@@ -15,7 +15,6 @@ import {
   History,
   RefreshCw,
   Search,
-  ShieldAlert,
   X,
   XCircle,
 } from "lucide-react";
@@ -754,18 +753,6 @@ export default function ScanHistory() {
           </>
         )}
 
-        <div className="flex items-start gap-2 border-t border-slate-100 bg-slate-50/70 px-5 py-3.5 text-xs leading-5 text-slate-600">
-          <ShieldAlert
-            aria-hidden="true"
-            size={15}
-            className="mt-0.5 shrink-0 text-amber-700"
-          />
-          PhishGuard uses an experimental machine learning model to assess
-          phishing-related URL patterns. Open a scan to view its available
-          ML prediction, risk level, and model score. Results are estimates,
-          not guarantees of website safety.
-
-        </div>
       </motion.section>
     </motion.main>
   );

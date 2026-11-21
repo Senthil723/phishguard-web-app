@@ -211,11 +211,6 @@ export default function AppLayout() {
 
           <div className="ml-auto flex shrink-0 items-center gap-2">
 
-            <span className="hidden items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-[11px] font-semibold text-amber-700 xl:inline-flex">
-              <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-              Prototype mode
-            </span>
-
             {/* =====================================
                 ACCOUNT PROFILE MENU
             ===================================== */}
@@ -424,23 +419,6 @@ export default function AppLayout() {
         <div className="min-w-0 flex-1 px-4 py-7 sm:px-6 sm:py-9 xl:px-9">
           <Outlet />
 
-        {/* Footer */}
-
-        <footer className="mt-12 flex flex-col justify-between gap-2 border-t border-slate-200/80 pt-5 text-xs text-slate-400 sm:flex-row sm:items-center">
-
-          <span>
-            © 2026 PhishGuard · Educational prototype
-          </span>
-
-          <span className="inline-flex items-center gap-2">
-            <ShieldCheck
-              size={14}
-              className="text-blue-500"
-            />
-            ML-assisted assessments · Not a guarantee of URL safety
-          </span>
-
-          </footer>
         </div>
       </div>
     </div>

@@ -9,7 +9,6 @@ import {
 
 import {
   AlertTriangle,
-  Info,
   Link as LinkIcon,
   LoaderCircle,
   Search,
@@ -562,45 +561,6 @@ export default function URLScanner() {
             </AnimatePresence>
 
           </form>
-        </motion.div>
-
-        {/* =====================================
-            ML ASSESSMENT INFORMATION
-        ===================================== */}
-
-        <motion.div
-          variants={
-            shouldReduceMotion
-              ? undefined
-              : fadeUp
-          }
-          className="mt-6 rounded-xl border border-blue-200 bg-blue-50/70 p-4"
-        >
-
-          <div className="flex items-start gap-3">
-
-            <Info
-              aria-hidden="true"
-              className="mt-1 h-5 w-5 shrink-0 text-blue-700"
-            />
-
-            <div>
-              <h3 className="font-medium text-blue-900">
-                About PhishGuard's ML analysis
-              </h3>
-
-              <p className="mt-1 text-sm leading-6 text-slate-600">
-                PhishGuard uses a machine learning model
-                to assess phishing-related patterns in
-                submitted URLs. The model analyzes URL
-                features without visiting the website.
-                Predictions indicate estimated risk and
-                may be incorrect. Do not treat any result
-                as proof that a website is safe or malicious.
-              </p>
-
-            </div>
-          </div>
         </motion.div>
 
       </motion.div>

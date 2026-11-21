@@ -449,18 +449,6 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Security disclaimer */}
-        <div className="flex items-start gap-2 border-t border-slate-100 bg-slate-50/70 px-5 py-3.5 text-xs leading-5 text-slate-500">
-          <ShieldAlert
-            size={15}
-            className="mt-0.5 shrink-0 text-amber-600"
-          />
-
-          These are saved URL assessments. Where available, predictions are
-          generated using a machine learning model. Results are estimates,
-          not guarantees that a website is safe or malicious.
-
-        </div>
       </motion.section>
     </motion.section>
   );

@@ -1,10 +1,11 @@
 
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, Integer, String
+from sqlalchemy import Boolean, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
+from app.db.types import utc_datetime_type
 
 
 class User(Base):
@@ -42,7 +43,7 @@ class User(Base):
     )
 
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
+        utc_datetime_type(),
         default=lambda: datetime.now(timezone.utc),
         nullable=False,
     )

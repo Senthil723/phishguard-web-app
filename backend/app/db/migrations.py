@@ -54,3 +54,28 @@ def migrate_scan_columns(db_engine: Engine = engine) -> None:
             if index.name == "ix_scans_user_id"
         )
         user_index.create(bind=connection, checkfirst=True)
+
+
+def migrate_mysql_datetime_precision(db_engine: Engine = engine) -> None:
+    """Preserve fractional seconds in MySQL timestamp columns."""
+    if db_engine.dialect.name != "mysql":
+        return
+
+    timestamp_columns = {
+        "users": ("created_at",),
+        "user_sessions": ("created_at", "expires_at", "revoked_at"),
+        "scans": ("created_at",),
+    }
+    with db_engine.begin() as connection:
+        inspector = inspect(connection)
+        for table_name, names in timestamp_columns.items():
+            columns = {column["name"]: column for column in inspector.get_columns(table_name)}
+            for name in names:
+                column = columns[name]
+                if getattr(column["type"], "fsp", None) == 6:
+                    continue
+                nullability = "NULL" if column["nullable"] else "NOT NULL"
+                connection.execute(text(
+                    f"ALTER TABLE `{table_name}` MODIFY COLUMN `{name}` "
+                    f"DATETIME(6) {nullability}"
+                ))

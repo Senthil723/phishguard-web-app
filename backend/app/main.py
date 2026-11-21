@@ -9,7 +9,7 @@ from starlette.concurrency import run_in_threadpool
 from app.api.v1.api import api_router
 from app.core.config import get_settings
 from app.db.base import Base
-from app.db.migrations import migrate_scan_columns
+from app.db.migrations import migrate_mysql_datetime_precision, migrate_scan_columns
 from app.db.session import engine
 
 # Import models so SQLAlchemy knows which tables to create.
@@ -21,6 +21,7 @@ from app.models import session
 def initialize_database() -> None:
     Base.metadata.create_all(bind=engine)
     migrate_scan_columns(engine)
+    migrate_mysql_datetime_precision(engine)
 
 
 @asynccontextmanager

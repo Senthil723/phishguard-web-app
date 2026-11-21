@@ -11,7 +11,6 @@ import {
   HelpCircle,
   Info,
   RefreshCw,
-  ShieldAlert,
   XCircle,
 } from "lucide-react";
 import { fadeUp, staggerContainer } from "../animations";
@@ -770,12 +769,6 @@ export default function ReportsAnalytics() {
         )}
       </motion.section>
 
-      <motion.p variants={itemVariants} className="flex items-start gap-2 text-xs leading-5 text-slate-600">
-        <ShieldAlert aria-hidden="true" size={15} className="mt-0.5 shrink-0 text-amber-700" />
-        These analytics represent URL submissions and backend processing statuses.
-        The status chart shows processing states, not model predictions.
-        Completed status is not a safe or malicious verdict.
-      </motion.p>
     </motion.main>
   );
 }

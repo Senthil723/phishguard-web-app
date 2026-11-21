@@ -7,7 +7,7 @@ PhishGuard is a React and FastAPI project for saving and assessing HTTP(S) URLs.
 - Account registration, login, remember-me sessions, and logout
 - Per-user URL scans with model prediction, score, risk level, and history
 - Dashboard statistics and date-range reports with CSV export
-- SQLite for local development, with optional MySQL configuration
+- SQLite for local development, with a documented transfer to MySQL
 
 ## Run locally
 
@@ -33,6 +33,8 @@ npm run dev
 Open `http://localhost:5173`. Use `localhost` for both the frontend and API in local configuration so login cookies work. The API docs are at `http://localhost:8000/docs`.
 
 The backend creates new tables and upgrades legacy scan columns on startup. Existing scans without a user remain unassigned; they are not shown in another account's history.
+
+To move existing accounts and scans into MySQL, follow the [backend transfer steps](backend/README.md#move-existing-data-to-mysql) before changing `DATABASE_URL`.
 
 ## Verify
 

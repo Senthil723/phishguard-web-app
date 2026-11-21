@@ -12,6 +12,8 @@ class Settings(BaseSettings):
 
     # SQLite makes first-time local setup simple. Set DATABASE_URL in .env for MySQL.
     database_url: str = "sqlite:///./phishguard.db"
+    # Used only by the one-time SQLite-to-MySQL transfer script.
+    mysql_database_url: str | None = None
     frontend_origins: str = "http://localhost:5173"
     session_cookie_secure: bool = False
 

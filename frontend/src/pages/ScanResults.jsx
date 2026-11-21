@@ -320,31 +320,6 @@ function ScanResults() {
           </Link>
         </motion.header>
 
-        {/* ML model information */}
-        <motion.section
-          variants={shouldReduceMotion ? undefined : fadeUp}
-          className="mb-6 flex items-start gap-3 rounded-2xl border border-blue-200 bg-blue-50/70 p-4"
-          aria-label="Machine learning model information"
-        >
-          <ShieldCheck
-            aria-hidden="true"
-            className="mt-0.5 shrink-0 text-blue-700"
-            size={22}
-          />
-
-          <div>
-            <h2 className="font-semibold text-blue-900">
-              Experimental ML-based URL assessment
-            </h2>
-            <p className="mt-1 text-sm leading-6 text-slate-700">
-              PhishGuard uses an experimental Random Forest model to assess
-              extracted URL features. The model does not visit the website or
-              inspect its webpage content. Its predictions are not guaranteed
-              security verdicts.
-            </p>
-          </div>
-        </motion.section>
-
         {/* Submission confirmation */}
         {location.state?.submissionNotice && showSubmissionConfirmation && (
           <div
@@ -798,13 +773,6 @@ function ScanResults() {
           </>
         )}
 
-        <motion.p
-          variants={shouldReduceMotion ? undefined : fadeUp}
-          className="mt-8 text-center text-xs leading-5 text-slate-600"
-        >
-          PhishGuard prototype · Model assessments are experimental and do not
-          guarantee website safety.
-        </motion.p>
       </motion.main>
     </div>
   );
